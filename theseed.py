@@ -155,7 +155,7 @@ class TheSeed():
         return TheSeedURL(self.host, '/internal/' if internal else '/', url_, parameter)
     
     def document_url(self, title, _type = '', parameter = {}, internal = False):
-        return self.url(_type + '/' + title, parameter, internal)
+        return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter, internal)
     
     def wait(self, _type):
         if _type == 'access':
