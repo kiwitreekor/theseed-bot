@@ -1,4 +1,4 @@
-import requests, re, urllib.parse, json, os.path, time, logging
+import requests, re, urllib.parse, json, os.path, time, logging, quickjs, zlib
 from bs4 import BeautifulSoup
 
 # theseed v4.16
@@ -28,18 +28,40 @@ class TheSeedError(Exception):
     def __str__(self):
         return repr(self)
 
+class TheSeedURL():
+    host = ''
+    baseurl = '/'
+    url = ''
+    parameter = {}
+
+    def __init__(self, host, baseurl, url, param = {}):
+        self.host = host
+        self.baseurl = baseurl
+        self.url = url
+        self.param = param
+    
+    def __str__(self):
+        param = ''
+        if len(self.parameter) > 0:
+            param = '?' + urllib.parse.urlencode(self.parameter, encoding='UTF-8', doseq=True)
+        
+        return 'https://' + self.host + self.baseurl + self.url + param
+
+
 class TheSeedDocument():
     namespace = ''
     title = ''
     force_show_namespace = True
     
-    def __init__(self, namespace, title, force_show_namespace = True):
-        if not namespace or not title:
+    def __init__(self, data):
+        if not 'title' in data or not 'namespace' in data:
             raise TypeError()
         
-        self.namespace = namespace
-        self.title = title
-        self.force_show_namespace = force_show_namespace
+        self.namespace = data['namespace']
+        self.title = data['title']
+
+        if 'forceShowNamespace' in data:
+            self.force_show_namespace = data['forceShowNamespace']
     
     def __repr__(self):
         return 'TheSeedDocument(' + str(self) + ')'
@@ -52,12 +74,14 @@ class TheSeedDocument():
 
 class TheSeed():
     rx_parse_content = re.compile(r'<script>window\.INITIAL_STATE=(\{.*?\})</script>')
+    rx_parse_script_url = re.compile(r'<script src="/(skins/senkawa/.*?\.js)" defer></script>')
+    x_chika = ''
     cookies = {}
     
-    config = {'member': {'username': None, 'password': None, 'cookies': {}, 'recaptcha_public': ''}, 'general': {'edit_interval': 1000, 'access_interval': 0, 'log_path': './theseed.log'}}
+    config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log'}}
     default_config_path = 'config.json'
     config_path = ''
-    
+
     '''
     format of common response:
         "config"
@@ -94,6 +118,8 @@ class TheSeed():
         self.load_config()
         
         self.logger = logging.getLogger(__name__)
+
+        self.is_loaded = False
         
         log_formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(filename)s:%(lineno)s] >> %(message)s')
         
@@ -108,80 +134,164 @@ class TheSeed():
         self.logger.addHandler(log_file_handler)
         self.logger.addHandler(log_stream_handler)
         self.logger.setLevel(level=logging.DEBUG)
+
+        self.state = {}
+
+        with open('theseed_hash.js', mode='r') as f:
+            theseed_hash_js = f.read()
+            self.theseed_nonce_hash = quickjs.Function('u', theseed_hash_js)
         
     # helper functions
-    def url(self, url_ = '', parameter = {}):
-        param = ''
-        if len(parameter) > 0:
-            param = '?' + urllib.parse.urlencode(parameter, encoding='UTF-8', doseq=True)
-        
-        return 'https://' + self.host + '/' + url_ + param
+    def url(self, url_, parameter = {}, internal = False):
+        return TheSeedURL(self.host, '/internal/' if internal else '/', url_, parameter)
     
-    def document_url(self, title, type = '', parameter = {}):
-        return self.url(type + '/' + title, parameter)
+    def document_url(self, title, _type = '', parameter = {}, internal = False):
+        return self.url(_type + '/' + title, parameter, internal)
     
-    def wait(self, type):
-        if type == 'access':
+    def wait(self, _type):
+        if _type == 'access':
             time.sleep(self.config['general']['access_interval'] / 1000)
-        elif type == 'edit':
+        elif _type == 'edit':
             time.sleep(self.config['general']['edit_interval'] / 1000)
+    
+    def decode_internal(self, stream):
+        n = 0
+        i = 0
+        e = 0
+        s_array = [53, 152, 166, 1, 230, 68, 121, 84, 40, 38, 50, 3, 19, 41, 151, 74, 145, 238, 42, 202, 237, 59, 255, 31, 69, 56, 4, 198, 90, 60, 135, 249, 116, 101, 5, 87, 79, 193, 147, 48, 158, 47, 111, 44, 110, 13, 28, 223, 118, 75, 96, 61, 83, 164, 21, 169, 14, 94, 186, 99, 89, 233, 126, 100, 167, 73, 188, 235, 168, 0, 108, 189, 224, 17, 194, 173, 7, 138, 250, 66, 142, 182, 156, 102, 139, 70, 155, 175, 105, 144, 200, 209, 241, 12, 137, 52, 106, 180, 113, 23, 149, 172, 91, 36, 34, 179, 65, 120, 141, 227, 8, 72, 184, 114, 165, 98, 25, 64, 9, 93, 39, 207, 246, 177, 159, 143, 16, 26, 213, 251, 49, 134, 204, 226, 63, 244, 77, 78, 216, 81, 199, 45, 86, 136, 171, 236, 140, 43, 150, 190, 76, 6, 215, 55, 170, 11, 239, 33, 10, 232, 220, 107, 104, 217, 82, 27, 253, 231, 20, 129, 247, 95, 176, 208, 85, 195, 30, 109, 212, 196, 254, 157, 15, 154, 92, 119, 243, 218, 24, 29, 205, 192, 221, 228, 32, 54, 22, 214, 146, 128, 131, 203, 163, 185, 252, 153, 125, 183, 88, 197, 222, 178, 132, 124, 234, 57, 51, 115, 162, 103, 160, 80, 133, 97, 206, 127, 201, 2, 248, 18, 117, 46, 219, 191, 62, 174, 123, 71, 240, 161, 122, 229, 245, 67, 242, 35, 181, 225, 37, 210, 211, 112, 58, 187, 148, 130]
         
-    def parse_error(self, content_json):
+        for pos in range(len(stream)):
+            n = (n + 1) & 0xFF
+            i = (i + s_array[n]) & 0xFF
+            e = s_array[n]
+            s_array[n] = s_array[i]
+            s_array[i] = e
+            stream[pos] ^= s_array[(s_array[n] + s_array[i]) & 0xFF]
+
+    @classmethod
+    def inflate(cls, data):
+        decompress = zlib.decompressobj(zlib.MAX_WBITS)
+
+        inflated = decompress.decompress(data)
+        inflated += decompress.flush()
+
+        return inflated        
+        
+    def parse_error(self):
         err_inst = None
         
-        if content_json['page']['viewName'] == 'error':
-            err_inst = TheSeedError(None, content_json['page']['data']['content'])
+        if self.state['page']['viewName'] == 'error':
+            err_inst = TheSeedError(None, self.state['page']['data']['content'])
         
-        if 'error' in content_json['page']['data']:
-            err = content_json['page']['data']['error']
+        if 'error' in self.state['page']['data']:
+            err = self.state['page']['data']['error']
             
-            err_inst = TheSeedError(err['code'], err['msg'], content_json['page']['title'])
+            err_inst = TheSeedError(err['code'], err['msg'], self.state['page']['title'])
         
         if err_inst:
             self.logger.error(str(err_inst))
             raise err_inst
-        
-    def get(self, url):
-        response = requests.get(url, cookies=self.cookies)
-        
-        self.wait('access')
-        
-        match = self.rx_parse_content.search(response.text)
-        content = match[1]
-        
-        content_json = json.loads(content)
-        
-        self.config['member']['recaptcha_public'] = content_json['config']['wiki.recaptcha_public']
-        
-        with open('response.txt', mode='w') as f:
-            json.dump(content_json, f, sort_keys=True, indent=4)
-            
-        self.parse_error(content_json)
-        
-        return (response, content_json)
-        
-    def post(self, url, parameter, multipart = False):
-        if not multipart:
-            response = requests.post(url, data=parameter, cookies=self.cookies, allow_redirects=False)
+
+    def parse_chika(self, response):
+        matches = self.rx_parse_script_url.findall(response.text)
+        script_url = matches[2]
+
+        script_response = requests.get(self.url(script_url))
+
+        rx_find_chika = re.compile(r'"X-Chika":"([0-9a-f]*?)",')
+
+        chika_match = rx_find_chika.search(script_response.text)
+        self.x_chika = chika_match[1]
+
+        self.logger.debug('Parse X-Chika: {}'.format(self.x_chika))
+    
+    def request_init(self, req_type, url, parameter={}):
+        url.baseurl = '/'
+
+        if req_type == "get":
+            response = requests.get(str(url), cookies=self.cookies)
+        elif req_type == "post":
+            response = requests.post(str(url), data=parameter, cookies=self.cookies)
+        elif req_type == "post.multipart":
+            response = requests.post(str(url), files=parameter, cookies=self.cookies)
         else:
-            response = requests.post(url, files=parameter, cookies=self.cookies, allow_redirects=False)
+            raise TypeError('{} is invalid request type'.format(req_type))
+            
         self.wait('access')
-        
-        if response.status_code == 200:
+
+        content_type = response.headers['content-type'].split(';')[0].strip().casefold()
+        if content_type == 'text/html':
+            if response.status_code == 429:
+                raise TheSeedError('recaptcha-error')
             match = self.rx_parse_content.search(response.text)
+            if not match:
+                raise ValueError('invalid response received')
+
             content = match[1]
             
-            content_json = json.loads(content)
-            
-            with open('response.txt', mode='w') as f:
-                json.dump(content_json, f, sort_keys=True, indent=4)
-            
-            self.parse_error(content_json)
+            self.state = json.loads(content)
+
+            if not self.is_loaded:
+                self.parse_chika(response)
+
+            self.is_loaded = True
         else:
-            with open('response.txt', mode='wb') as f:
-                f.write(response.text.encode('utf-8'))
+            raise TypeError('{} is unsupported MIME type'.format(content_type))
+            
+        with open('response.txt', mode='w') as f:
+            json.dump(self.state, f, sort_keys=True, indent=4)
+
+        return response
+    
+    def request_internal(self, req_type, url, parameter={}):
+        assert self.is_loaded
+
+        url.baseurl = '/internal/'
+        headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
+            'X-You': self.state['config']['hash'], 'charset': 'utf-8'}
+
+        if req_type == "get":
+            url.parameter['_'] = int(time.time())
+            response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
+        elif req_type == "post":
+            response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+        elif req_type == "post.multipart":
+            response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+        else:
+            raise TypeError('{} is invalid request type'.format(req_type))
+
+        if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
+            raise ValueError('invalid response received')
+
+        content_type = response.headers['content-type'].split(';')[0].strip().casefold()
+        if content_type == 'application/json':
+            self.state['page'] = json.loads(response.text)
+
+        elif content_type == 'application/octet-stream':
+            data = bytearray(response.content)
+            self.decode_internal(data)
+
+            self.state['page'] = json.loads(self.inflate(data))
+        else:
+            raise TypeError('{} is unsupported MIME type'.format(content_type))
+            
+        with open('response.txt', mode='w') as f:
+            json.dump(self.state, f, sort_keys=True, indent=4)
         
-        return (response, None)
+        return response
+        
+        
+    def get(self, url):
+        if not self.is_loaded:
+            return self.request_init('get', url)
+        else:
+            return self.request_internal('get', url)
+        
+    def post(self, url, parameter, multipart = False):
+        if not self.is_loaded:
+            return self.request_init('post' if not multipart else 'post.multipart', url, parameter)
+        else:
+            return self.request_internal('post' if not multipart else 'post.multipart', url, parameter)
     
     # handle configuration
     def load_config(self):
@@ -189,7 +299,7 @@ class TheSeed():
             self.config_path = self.default_config_path
             
         if not os.path.isfile(self.config_path):
-            self.init_config(self.config_path)
+            self.init_config()
             return
         
         with open(self.config_path, 'r') as config_file:
@@ -210,10 +320,73 @@ class TheSeed():
         
     # action functions
     def w(self, title, rev = -1):
-        response = self.get(self.document_url(title, 'w'))
+        '''
+        response:
+            "page"
+                "data"
+                    "body"
+                    "category" []
+                        "doc"
+                            "namespace"
+                            "title"
+                        "exist"
+                    "document"
+                        "forceShowNamespace" (optional)
+                        "namespace"
+                        "title"
+                    "discuss_progress"
+                    "date"
+                    "redirect"
+                    "enable_ads"
+                    "enable_powerlink"
+                    "star_count"
+                    "starred"
+                    "rev"
+                    "content"
+                "meta"
+                "title"
+                "viewName"
+        '''
+        param = {}
+        if rev > 0:
+            param['rev'] = rev
+
+        self.get(self.document_url(title, 'w', param, internal=True))
+
+        data = self.state['page']['data']
+        rev = data['rev']
+
+        self.logger.info('Success (w, {}{})'.format(title, ' (r{})'.format(rev) if rev else ''))
+
+        return data
     
     def raw(self, title, rev = -1):
-        response = self.get(self.document_url(title, 'raw'))
+        '''
+        response:
+            "page"
+                "data"
+                    "body"
+                    "document"
+                        "forceShowNamespace" (optional)
+                        "namespace"
+                        "title"
+                    "rev"
+                    "text"
+                "meta"
+                "title"
+                "viewName"
+        '''
+        param = {}
+        if rev > 0:
+            param['rev'] = rev
+
+        self.get(self.document_url(title, 'raw', param, internal=True))
+        
+        text = self.state['page']['data']['text']
+
+        self.logger.info('Success (raw, {} (r{}))'.format(title, self.state['page']['data']['rev']))
+
+        return text
     
     def edit(self, title, callback, section = None, log = '', request = False):
         '''
@@ -245,9 +418,9 @@ class TheSeed():
         
         view_name = 'edit' if not request else 'new_edit_request'
             
-        response, content_json = self.get(self.document_url(title, view_name, param))
+        self.get(self.document_url(title, view_name, param))
         
-        data = content_json['page']['data']
+        data = self.state['page']['data']
         
         token = data['token']
         rev = data['body']['baserev']
@@ -259,7 +432,7 @@ class TheSeed():
             self.logger.info('Skip (edit, {})'.format(title))
             return
         
-        id = content_json['session']['identifier']
+        id = self.state['session']['identifier']
         
         parameters = {'token': (None, token), 'identifier': (None, id), 'baserev': (None, rev), 'text': (None, new_text), 'log': (None, log), 'agree': (None, 'Y')}
         
@@ -269,9 +442,6 @@ class TheSeed():
         self.post(self.document_url(title, view_name), parameters, multipart=True)
         
         self.logger.info('Success ({}, {})'.format(view_name, title))
-            
-        with open('response.txt', mode='w') as f:
-            json.dump(content_json, f, sort_keys=True, indent=4)
             
         self.wait('edit')
     
@@ -290,10 +460,9 @@ class TheSeed():
         pw = self.config['member']['password']
         
         try:
-            response, content_json = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
+            response = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
         except TheSeedError as err:
             self.logger.error(err)
-            
         else:
             self.logger.info('Success (login, {})'.format(id))
             
@@ -313,7 +482,7 @@ class TheSeed():
             self.config['member']['password'] = pw
     
     def logout(self):
-        response, content_json = self.get(self.url('member/logout'))
+        self.get(self.url('member/logout'))
         
         self.cookies = {}
         
@@ -321,7 +490,7 @@ class TheSeed():
         
         self.logger.info('Success (logout)')
     
-    def search(self, query, pages = [1]):
+    def search(self, query, pages = [1], total=False):
         '''
         response:
             "page"
@@ -343,20 +512,22 @@ class TheSeed():
                 "viewName"
         '''
         search = []
+        total = self.state['page']['data']['total']
         
         for page in pages:
-            response, content_json = self.get(self.url('Search', {'q': query, 'page': page}))
+            self.get(self.url('Search', {'q': query, 'page': page}))
             
-            search_json = content_json['page']['data']['search']
+            search_json = self.state['page']['data']['search']
             
             for item in search_json:
-                if 'forceShowNamespace' in item['doc']:
-                    document = TheSeedDocument(item['doc']['namespace'], item['doc']['title'], item['doc']['forceShowNamespace'])
-                else:
-                    document = TheSeedDocument(item['doc']['namespace'], item['doc']['title'])
+                document = TheSeedDocument(item['doc'])
                 
                 search.append(document)
             self.logger.debug('Success (search, {} - page {})'.format(query, page))
         
         self.logger.info('Success (search, {})'.format(query))
-        return search
+
+        if total:
+            return search, total
+        else:
+            return search
