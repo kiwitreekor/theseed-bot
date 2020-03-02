@@ -38,7 +38,7 @@ class TheSeedURL():
         self.host = host
         self.baseurl = baseurl
         self.url = url
-        self.param = param
+        self.parameter = param
     
     def __str__(self):
         param = ''
@@ -186,7 +186,8 @@ class TheSeed():
         if 'error' in self.state['page']['data']:
             err = self.state['page']['data']['error']
             
-            err_inst = TheSeedError(err['code'], err['msg'], self.state['page']['title'])
+            if 'document' in self.state['page']['data']:
+                err_inst = TheSeedError(err['code'], err['msg'], str(TheSeedDocument(self.state['page']['data']['document'])))
         
         if err_inst:
             self.logger.error(str(err_inst))
@@ -205,79 +206,115 @@ class TheSeed():
 
         self.logger.debug('Parse X-Chika: {}'.format(self.x_chika))
     
-    def request_init(self, req_type, url, parameter={}):
+    def request_init(self, req_type, url, parameter = {}):
         url.baseurl = '/'
 
-        if req_type == "get":
-            response = requests.get(str(url), cookies=self.cookies)
-        elif req_type == "post":
-            response = requests.post(str(url), data=parameter, cookies=self.cookies)
-        elif req_type == "post.multipart":
-            response = requests.post(str(url), files=parameter, cookies=self.cookies)
-        else:
-            raise TypeError('{} is invalid request type'.format(req_type))
+        finished = False
+        loop_count = 0
+        response = None
+
+        while not finished and loop_count < 3:
+            loop_count += 1
+
+            if req_type == "get":
+                response = requests.get(str(url), cookies=self.cookies)
+            elif req_type == "post":
+                response = requests.post(str(url), data=parameter, cookies=self.cookies)
+            elif req_type == "post.multipart":
+                response = requests.post(str(url), files=parameter, cookies=self.cookies)
+            else:
+                raise TypeError('{} is invalid request type'.format(req_type))
+                
+            self.wait('access')
+
+            content_type = response.headers['content-type'].split(';')[0].strip().casefold()
+            if content_type == 'text/html':
+                if response.status_code == 429:
+                    input('Resolve the recaptcha.')
+                    continue
+
+                match = self.rx_parse_content.search(response.text)
+                if not match:
+                    raise ValueError('invalid response received')
+
+                content = match[1]
+                
+                self.state = json.loads(content)
+
+                if not self.is_loaded:
+                    self.parse_chika(response)
+
+                self.is_loaded = True
+            else:
+                raise TypeError('{} is unsupported MIME type'.format(content_type))
             
-        self.wait('access')
+            finished = True
 
-        content_type = response.headers['content-type'].split(';')[0].strip().casefold()
-        if content_type == 'text/html':
-            if response.status_code == 429:
-                raise TheSeedError('recaptcha-error')
-            match = self.rx_parse_content.search(response.text)
-            if not match:
-                raise ValueError('invalid response received')
-
-            content = match[1]
-            
-            self.state = json.loads(content)
-
-            if not self.is_loaded:
-                self.parse_chika(response)
-
-            self.is_loaded = True
-        else:
-            raise TypeError('{} is unsupported MIME type'.format(content_type))
-            
-        with open('response.txt', mode='w') as f:
-            json.dump(self.state, f, sort_keys=True, indent=4)
-
-        return response
-    
-    def request_internal(self, req_type, url, parameter={}):
-        assert self.is_loaded
-
-        url.baseurl = '/internal/'
-        headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
-            'X-You': self.state['config']['hash'], 'charset': 'utf-8'}
-
-        if req_type == "get":
-            url.parameter['_'] = int(time.time())
-            response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
-        elif req_type == "post":
-            response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
-        elif req_type == "post.multipart":
-            response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
-        else:
-            raise TypeError('{} is invalid request type'.format(req_type))
-
-        if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
-            raise ValueError('invalid response received')
-
-        content_type = response.headers['content-type'].split(';')[0].strip().casefold()
-        if content_type == 'application/json':
-            self.state['page'] = json.loads(response.text)
-
-        elif content_type == 'application/octet-stream':
-            data = bytearray(response.content)
-            self.decode_internal(data)
-
-            self.state['page'] = json.loads(self.inflate(data))
-        else:
-            raise TypeError('{} is unsupported MIME type'.format(content_type))
-            
         with open('response.txt', mode='w') as f:
             json.dump(self.state, f, sort_keys=True, indent=4)
         
+        self.parse_error()
+
+        return response
+    
+    def request_internal(self, req_type, url, parameter = {}):
+        assert self.is_loaded
+
+        finished = False
+        loop_count = 0
+        response = None
+
+        while not finished and loop_count < 3:
+            loop_count += 1
+
+            url.baseurl = '/internal/'
+            headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
+                'X-You': self.state['config']['hash'], 'charset': 'utf-8'}
+
+            if req_type == "get":
+                url.parameter['_'] = int(time.time())
+                response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
+            elif req_type == "post":
+                response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+            elif req_type == "post.multipart":
+                response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+            else:
+                raise TypeError('{} is invalid request type'.format(req_type))
+            
+            if response.status_code == 429:
+                input('Resolve the recaptcha.')
+                continue
+
+            if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
+                raise ValueError('invalid response received')
+            
+            content_type = response.headers['content-type'].split(';')[0].strip().casefold()
+            if content_type == 'application/json':
+                self.state['page'].update(json.loads(response.text))
+            elif content_type == 'application/octet-stream':
+                data = bytearray(response.content)
+                self.decode_internal(data)
+
+                self.state['page'].update(json.loads(self.inflate(data)))
+            else:
+                raise TypeError('{} is unsupported MIME type'.format(content_type))
+            
+            finished = True
+                
+        with open('response.txt', mode='w') as f:
+            json.dump(self.state, f, sort_keys=True, indent=4)
+        
+        if self.state['page']['status'] == 200:
+            self.parse_error()
+
+        if 'sessionHash' in self.state['page']:
+            self.state['session']['hash'] = self.state['page']['sessionHash']
+            del self.state['page']['sessionHash']
+        
+        if 'session' in self.state['page']:
+            self.state['session'].update(self.state['page']['session'])
+            del self.state['page']['session']
+
         return response
         
         
@@ -490,7 +527,7 @@ class TheSeed():
         
         self.logger.info('Success (logout)')
     
-    def search(self, query, pages = [1], total=False):
+    def search(self, query, pages = [1], return_total=False):
         '''
         response:
             "page"
@@ -512,7 +549,6 @@ class TheSeed():
                 "viewName"
         '''
         search = []
-        total = self.state['page']['data']['total']
         
         for page in pages:
             self.get(self.url('Search', {'q': query, 'page': page}))
@@ -525,9 +561,11 @@ class TheSeed():
                 search.append(document)
             self.logger.debug('Success (search, {} - page {})'.format(query, page))
         
+        total = self.state['page']['data']['total']
+        
         self.logger.info('Success (search, {})'.format(query))
-
-        if total:
-            return search, total
+        
+        if return_total:
+            return (search, total)
         else:
             return search
