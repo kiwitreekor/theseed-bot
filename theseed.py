@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 
 # theseed v4.16
 
-class TheSeedError(Exception):
+class TheSeedBaseError(Exception):
     def __init__(self, code, msg = '', title = ''):
         self.code = code
         self.msg = msg
@@ -21,12 +21,21 @@ class TheSeedError(Exception):
     
     def __repr__(self):
         if self.code:
-            return '{} ({}) @{}'.format(self.code, self.get_raw_msg(), self.page_title)
+            return '{} {} @{}'.format(self.code, '({})'.format(self.get_raw_msg()) if self.msg else '', self.page_title)
         else:
             return '{} @{}'.format(self.get_raw_msg(), self.page_title)
     
     def __str__(self):
         return repr(self)
+
+class TheSeedError(TheSeedBaseError):
+    pass
+
+class TheSeedStop(TheSeedBaseError):
+    def __init__(self, parent):
+        super().__init__('user-discuss-occurred')
+
+        parent.save_config()
 
 class TheSeedURL():
     host = ''
@@ -74,11 +83,11 @@ class TheSeedDocument():
 
 class TheSeed():
     rx_parse_content = re.compile(r'<script>window\.INITIAL_STATE=(\{.*?\})</script>')
-    rx_parse_script_url = re.compile(r'<script src="/(skins/senkawa/.*?\.js)" defer></script>')
+    rx_parse_script_url = re.compile(r'<script src="/(skins/.*?/.*?\.js)" defer></script>')
     x_chika = ''
     cookies = {}
     
-    config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log'}}
+    config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
     default_config_path = 'config.json'
     config_path = ''
 
@@ -189,6 +198,13 @@ class TheSeed():
             if 'document' in self.state['page']['data']:
                 err_inst = TheSeedError(err['code'], err['msg'], str(TheSeedDocument(self.state['page']['data']['document'])))
         
+        if self.state['session']['member']:
+            if 'user_document_discuss' in self.state['session']['member']:
+                if self.state['session']['member']['user_document_discuss'] > self.config['general']['confirmed_user_discuss']:
+                    self.logger.critical('Emergency stop!')
+                    self.confirm_user_discuss()
+                    raise TheSeedStop(self)
+
         if err_inst:
             self.logger.error(str(err_inst))
             raise err_inst
@@ -569,3 +585,6 @@ class TheSeed():
             return (search, total)
         else:
             return search
+    
+    def confirm_user_discuss(self):
+        self.config['general']['confirmed_user_discuss'] = int(time.time())
