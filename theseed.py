@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 
 # theseed v4.16
 
-class TheSeedBaseError(Exception):
+class BaseError(Exception):
     def __init__(self, code, msg = '', title = ''):
         self.code = code
         self.msg = msg
@@ -28,16 +28,16 @@ class TheSeedBaseError(Exception):
     def __str__(self):
         return repr(self)
 
-class TheSeedError(TheSeedBaseError):
+class Error(BaseError):
     pass
 
-class TheSeedStop(TheSeedBaseError):
+class StopSignal(BaseError):
     def __init__(self, parent):
         super().__init__('user-discuss-occurred')
 
         parent.save_config()
 
-class TheSeedURL():
+class URL():
     host = ''
     baseurl = '/'
     url = ''
@@ -57,7 +57,7 @@ class TheSeedURL():
         return 'https://' + self.host + self.baseurl + self.url + param
 
 
-class TheSeedDocument():
+class Document():
     namespace = ''
     title = ''
     force_show_namespace = True
@@ -154,7 +154,7 @@ class TheSeed():
         
     # helper functions
     def url(self, url_, parameter = {}, internal = False):
-        return TheSeedURL(self.host, '/internal/' if internal else '/', url_, parameter)
+        return URL(self.host, '/internal/' if internal else '/', url_, parameter)
     
     def document_url(self, title, _type = '', parameter = {}, internal = False):
         return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter, internal)
@@ -199,20 +199,20 @@ class TheSeed():
         err_inst = None
         
         if self.state['page']['viewName'] == 'error':
-            err_inst = TheSeedError(None, self.state['page']['data']['content'])
+            err_inst = Error(None, self.state['page']['data']['content'])
         
         if 'error' in self.state['page']['data']:
             err = self.state['page']['data']['error']
             
             if 'document' in self.state['page']['data']:
-                err_inst = TheSeedError(err['code'], err['msg'], str(TheSeedDocument(self.state['page']['data']['document'])))
+                err_inst = Error(err['code'], err['msg'], str(Document(self.state['page']['data']['document'])))
         
         if self.state['session']['member']:
             if 'user_document_discuss' in self.state['session']['member']:
                 if self.state['session']['member']['user_document_discuss'] > self.read_config('general.confirmed_user_discuss'):
                     self.logger.critical('Emergency stop!')
                     self.confirm_user_discuss()
-                    raise TheSeedStop(self)
+                    raise StopSignal(self)
 
         if err_inst:
             self.logger.error(str(err_inst))
@@ -529,9 +529,9 @@ class TheSeed():
             self.logger.info('Skip (edit, {})'.format(title))
             return
         
-        id = self.state['session']['identifier']
+        ide = self.state['session']['identifier']
         
-        parameters = {'token': (None, token), 'identifier': (None, id), 'baserev': (None, rev), 'text': (None, new_text), 'log': (None, log), 'agree': (None, 'Y')}
+        parameters = {'token': (None, token), 'identifier': (None, ide), 'baserev': (None, rev), 'text': (None, new_text), 'log': (None, log), 'agree': (None, 'Y')}
         
         if section != None:
             parameters['section'] = (None, section)
@@ -541,6 +541,73 @@ class TheSeed():
             
         self.wait('edit')
     
+    def move(self, origin, target, log = '', swap = False, make_redirect = False):
+        '''
+        response:
+            "page"
+                "data"
+                    "captcha"
+                    "document"
+                        "namespace"
+                        "title"
+                    "token"
+        request:
+            token
+            identifier
+            title
+            log
+            mode
+        '''
+
+        self.set_wait('edit')
+            
+        self.get(self.document_url(origin, 'move'))
+
+        data = self.state['page']['data']
+
+        token = data['token']
+        ide = self.state['session']['identifier']
+
+        parameters = {'token': (None, token), 'identifier': (None, ide), 'title': (None, target), 'log': (None, log), 'mode': (None, '' if not swap else 'swap')}
+        
+        self.post(self.document_url(origin, 'move'), parameters, multipart=True)
+        self.logger.info('Success (move, {} to {})'.format(origin, target))
+
+        self.wait('edit')
+
+        if make_redirect:
+            self.edit(origin, lambda a, b: '#redirect {}'.format(target))
+
+    def delete(self, title, log = ''):
+        '''
+        response:
+            "page"
+                "data"
+                    "captcha"
+                    "document"
+                        "namespace"
+                        "title"
+        request:
+            token
+            identifier
+            title
+            log
+            mode
+        '''
+
+        self.set_wait('edit')
+
+        self.get(self.document_url(title, 'delete'))
+
+        ide = self.state['session']['identifier']
+
+        parameters = {'identifier': (None, ide), 'log': (None, log), 'agree': (None, 'Y')}
+
+        self.post(self.document_url(title, 'delete'), parameters, multipart=True)
+        self.logger.info('Success (delete, {})'.format(title))
+
+        self.wait('edit')
+
     def login(self):
         '''
         username
@@ -557,7 +624,7 @@ class TheSeed():
         
         try:
             response = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
-        except TheSeedError as err:
+        except Error as err:
             self.logger.error(err)
         else:
             self.logger.info('Success (login, {})'.format(id))
@@ -612,7 +679,7 @@ class TheSeed():
             search_json = self.state['page']['data']['search']
             
             for item in search_json:
-                document = TheSeedDocument(item['doc'])
+                document = Document(item['doc'])
                 
                 search.append(document)
             self.logger.debug('Success (search, {} - page {})'.format(query, page))
