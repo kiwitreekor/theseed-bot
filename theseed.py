@@ -91,6 +91,8 @@ class TheSeed():
     default_config_path = 'config.json'
     config_path = ''
 
+    wait_start = {}
+
     '''
     format of common response:
         "config"
@@ -132,7 +134,7 @@ class TheSeed():
         
         log_formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(filename)s:%(lineno)s] >> %(message)s')
         
-        log_file_handler = logging.FileHandler(self.config['general']['log_path'], encoding='utf-8')
+        log_file_handler = logging.FileHandler(self.read_config('general.log_path'), encoding='utf-8')
         log_file_handler.setFormatter(log_formatter)
         log_file_handler.setLevel(level=log_level)
         
@@ -157,11 +159,18 @@ class TheSeed():
     def document_url(self, title, _type = '', parameter = {}, internal = False):
         return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter, internal)
     
+    def set_wait(self, _type):
+        self.wait_start[_type] = time.time()
+
     def wait(self, _type):
         if _type == 'access':
-            time.sleep(self.config['general']['access_interval'] / 1000)
+            wait_time = self.read_config('general.access_interval')
         elif _type == 'edit':
-            time.sleep(self.config['general']['edit_interval'] / 1000)
+            wait_time = self.read_config('general.edit_interval')
+        
+        time.sleep(max(self.wait_start[_type] + wait_time / 1000 - time.time(), 0))
+        
+        del self.wait_start[_type]
     
     def decode_internal(self, stream):
         n = 0
@@ -200,7 +209,7 @@ class TheSeed():
         
         if self.state['session']['member']:
             if 'user_document_discuss' in self.state['session']['member']:
-                if self.state['session']['member']['user_document_discuss'] > self.config['general']['confirmed_user_discuss']:
+                if self.state['session']['member']['user_document_discuss'] > self.read_config('general.confirmed_user_discuss'):
                     self.logger.critical('Emergency stop!')
                     self.confirm_user_discuss()
                     raise TheSeedStop(self)
@@ -231,6 +240,8 @@ class TheSeed():
 
         while not finished and loop_count < 3:
             loop_count += 1
+                
+            self.set_wait('access')
 
             if req_type == "get":
                 response = requests.get(str(url), cookies=self.cookies)
@@ -287,6 +298,8 @@ class TheSeed():
             headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
                 'X-You': self.state['config']['hash'], 'charset': 'utf-8'}
 
+            self.set_wait('access')
+
             if req_type == "get":
                 url.parameter['_'] = int(time.time())
                 response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
@@ -296,6 +309,8 @@ class TheSeed():
                 response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
             else:
                 raise TypeError('{} is invalid request type'.format(req_type))
+                
+            self.wait('access')
             
             if response.status_code == 429:
                 input('Resolve the recaptcha.')
@@ -370,6 +385,33 @@ class TheSeed():
 
         with open(self.config_path, 'w') as config_file:
             json.dump(self.config, config_file, sort_keys=True, indent=4)
+    
+    def read_config(self, key):
+        keys = key.split('.')
+
+        temp = self.config
+        try:
+            while keys:
+                temp = temp[keys[0]]
+                del keys[0]
+        except KeyError:
+            raise KeyError(key)
+        
+        return temp
+    
+    def write_config(self, key, value):
+        keys = key.split('.')
+
+        temp = self.config
+        try:
+            while len(keys) > 1:
+                temp = temp[keys[0]]
+                del keys[0]
+        except KeyError:
+            raise KeyError(key)
+        
+        temp[keys[0]] = value
+        self.save_config()
         
     # action functions
     def w(self, title, rev = -1):
@@ -470,6 +512,8 @@ class TheSeed():
             param['section'] = section
         
         view_name = 'edit' if not request else 'new_edit_request'
+
+        self.set_wait('edit')
             
         self.get(self.document_url(title, view_name, param))
         
@@ -493,7 +537,6 @@ class TheSeed():
             parameters['section'] = (None, section)
         
         self.post(self.document_url(title, view_name), parameters, multipart=True)
-        
         self.logger.info('Success ({}, {})'.format(view_name, title))
             
         self.wait('edit')
@@ -509,8 +552,8 @@ class TheSeed():
         umi
         '''
         
-        id = self.config['member']['username']
-        pw = self.config['member']['password']
+        id = self.read_config('member.username')
+        pw = self.read_config('member.password')
         
         try:
             response = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
@@ -529,17 +572,14 @@ class TheSeed():
             if 'umi' in response.cookies:
                 self.cookies['umi'] = response.cookies['umi']
             
-            self.config['member']['cookies'] = self.cookies
-            
-            self.config['member']['username'] = id
-            self.config['member']['password'] = pw
+            self.write_config('member.cookies', self.cookies)
     
     def logout(self):
         self.get(self.url('member/logout'))
         
         self.cookies = {}
         
-        self.config['member']['cookies'] = {}
+        self.write_config('member.cookies', {})
         
         self.logger.info('Success (logout)')
     
@@ -587,4 +627,4 @@ class TheSeed():
             return search
     
     def confirm_user_discuss(self):
-        self.config['general']['confirmed_user_discuss'] = int(time.time())
+        self.write_config('general.confirmed_user_discuss', int(time.time()))
