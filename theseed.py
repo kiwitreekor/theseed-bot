@@ -153,11 +153,11 @@ class TheSeed():
             self.theseed_nonce_hash = quickjs.Function('u', theseed_hash_js)
         
     # helper functions
-    def url(self, url_, parameter = {}, internal = False):
-        return URL(self.host, '/internal/' if internal else '/', url_, parameter)
+    def url(self, url_, parameter = {}):
+        return URL(self.host, '/', url_, parameter)
     
-    def document_url(self, title, _type = '', parameter = {}, internal = False):
-        return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter, internal)
+    def document_url(self, title, _type = '', parameter = {}):
+        return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter)
     
     def set_wait(self, _type):
         self.wait_start[_type] = time.time()
@@ -199,7 +199,12 @@ class TheSeed():
         err_inst = None
         
         if self.state['page']['viewName'] == 'error':
-            err_inst = Error(None, self.state['page']['data']['content'])
+            err_type = None
+
+            if '편집요청 권한이 부족' in self.state['page']['data']['content']:
+                err_type = 'permission_edit_request'
+
+            err_inst = Error(err_type, self.state['page']['data']['content'])
         
         if 'error' in self.state['page']['data']:
             err = self.state['page']['data']['error']
@@ -315,6 +320,11 @@ class TheSeed():
             if response.status_code == 429:
                 input('Resolve the recaptcha.')
                 continue
+            
+            if not 'x-ruby' in response.headers:
+                with open('response.txt', mode='w') as f:
+                    json.dump(dict(response.headers), f, sort_keys=True, indent=4)
+                raise ValueError('invalid response received')
 
             if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
                 raise ValueError('invalid response received')
@@ -414,6 +424,9 @@ class TheSeed():
         
         temp[keys[0]] = value
         self.save_config()
+
+    def confirm_user_discuss(self):
+        self.write_config('general.confirmed_user_discuss', int(time.time()))
         
     # action functions
     def w(self, title, rev = -1):
@@ -448,7 +461,7 @@ class TheSeed():
         if rev > 0:
             param['rev'] = rev
 
-        self.get(self.document_url(title, 'w', param, internal=True))
+        self.get(self.document_url(title, 'w', param))
 
         data = self.state['page']['data']
         rev = data['rev']
@@ -477,7 +490,7 @@ class TheSeed():
         if rev > 0:
             param['rev'] = rev
 
-        self.get(self.document_url(title, 'raw', param, internal=True))
+        self.get(self.document_url(title, 'raw', param))
         
         text = self.state['page']['data']['text']
 
@@ -578,7 +591,7 @@ class TheSeed():
         self.wait('edit')
 
         if make_redirect:
-            self.edit(origin, lambda a, b: '#redirect {}'.format(target))
+            self.edit(origin, lambda a, b: '#redirect {}'.format(target), log='자동 생성된 리다이렉트')
 
     def delete(self, title, log = ''):
         '''
@@ -669,9 +682,6 @@ class TheSeed():
                         "text"
                     "took"
                     "total"
-                "meta"
-                "title"
-                "viewName"
         '''
         search = []
         
@@ -694,6 +704,82 @@ class TheSeed():
             return (search, total)
         else:
             return search
-    
-    def confirm_user_discuss(self):
-        self.write_config('general.confirmed_user_discuss', int(time.time()))
+
+    def backlink(self, title, from_ = None, until = None, namespace = None, flag = None):
+        '''
+        response:
+            "page"
+                "data"
+                    "body"
+                    "RefsFlagsMap"
+                        "file"
+                        "include"
+                        "link"
+                        "redirect"
+                    "backlinks" {[]}
+                        "doc"
+                        "type"
+                    "from"
+                    "until"
+                    "namespaces" []
+                        "count"
+                        "namespace"
+                    "selectedFlag"
+                    "selectedNamespace"
+        '''
+
+        document_list = []
+        finished = False
+        next_doc = None
+
+        while not finished:
+            parameters = {}
+            if from_ and not next_doc:
+                parameters['from'] = from_
+            elif next_doc:
+                parameters['from'] = next_doc
+            
+            if namespace:
+                parameters['namespace'] = namespace
+            
+            if flag:
+                parameters['flag'] = flag
+            
+            self.get(self.document_url(title, 'backlink', parameter=parameters))
+
+            backlink_json = self.state['page']['data']['backlinks']
+
+            next_doc = self.state['page']['data']['from']
+
+            if until:
+                if until < next_doc:
+                    finished = True
+            else:
+                if not next_doc:
+                    finished = True
+
+            for backlinks in backlink_json.values():
+                for backlink in backlinks:
+                    doc = Document(backlink['doc'])
+                    pass_doc = False
+
+                    if from_ and doc.title < from_:
+                        pass_doc = True
+
+                    if until and doc.title > until:
+                        pass_doc = True
+                    
+                    if not pass_doc:
+                        document_list.append((doc, backlink['type']))
+            
+            self.logger.debug('Success (backlink, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
+
+        self.logger.info('Success (backlink, {})'.format(title))
+
+        return document_list
+
+class BacklinkFlags():
+    file = 2
+    include = 4
+    link = 1
+    redirect = 8
