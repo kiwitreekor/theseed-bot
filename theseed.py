@@ -337,6 +337,8 @@ class TheSeed():
         
         if self.state['page']['status'] == 200:
             self.parse_error()
+        elif self.state['page']['status'] >= 400 and self.state['page']['status'] < 500:
+            self.parse_error()
 
         if 'sessionHash' in self.state['page']:
             self.state['session']['hash'] = self.state['page']['sessionHash']
