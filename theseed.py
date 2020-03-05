@@ -538,9 +538,9 @@ class TheSeed():
         rev = data['body']['baserev']
         text = data['body']['text']
         
-        new_text = callback(title, text)
+        new_text = callback(Document(data['document']), text)
         
-        if new_text == None:
+        if new_text == None or new_text == text:
             self.logger.info('Skip (edit, {})'.format(title))
             return
         
@@ -603,11 +603,9 @@ class TheSeed():
                         "namespace"
                         "title"
         request:
-            token
             identifier
-            title
+            agree
             log
-            mode
         '''
 
         self.set_wait('edit')
@@ -620,6 +618,25 @@ class TheSeed():
 
         self.post(self.document_url(title, 'delete'), parameters, multipart=True)
         self.logger.info('Success (delete, {})'.format(title))
+
+        self.wait('edit')
+    
+    def revert(self, title, rev, log = ''):
+        '''
+        request:
+            identifier
+            rev
+            log
+        '''
+        
+        self.set_wait('edit')
+
+        ide = self.state['session']['identifier']
+
+        parameters = {'identifier': ide, 'log': log, 'rev': rev}
+
+        self.post(self.document_url(title, 'revert'), parameters)
+        self.logger.info('Success (revert, {}, r{})'.format(title, rev))
 
         self.wait('edit')
 
