@@ -1,7 +1,7 @@
 import requests, re, urllib.parse, json, os.path, time, logging, quickjs, zlib
 from bs4 import BeautifulSoup
 
-# theseed v4.16
+# theseed v4.17.3
 
 class BaseError(Exception):
     def __init__(self, code, msg = '', title = ''):
@@ -81,15 +81,34 @@ class Document():
         else:
             return self.title
 
+class BacklinkFlags():
+    file = 2
+    include = 4
+    link = 1
+    redirect = 8
+
+class Namespaces():
+    category = '분류'
+    template = '틀'
+    document = '문서'
+    file = '파일'
+
 class TheSeed():
     rx_parse_content = re.compile(r'<script>window\.INITIAL_STATE=(\{.*?\})</script>')
     rx_parse_script_url = re.compile(r'<script src="/(skins/.*?/.*?\.js)" defer></script>')
     x_chika = ''
     cookies = {}
+    strings = []
+    
+    decode_array = []
     
     config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
     default_config_path = 'config.json'
     config_path = ''
+    
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36 Edg/81.0.416.72'
+
+    max_loop_count = 5
 
     wait_start = {}
 
@@ -148,7 +167,7 @@ class TheSeed():
 
         self.state = {}
 
-        with open('theseed_hash.js', mode='r') as f:
+        with open('theseed_hash.js', mode='r', encoding='utf-8') as f:
             theseed_hash_js = f.read()
             self.theseed_nonce_hash = quickjs.Function('u', theseed_hash_js)
         
@@ -176,7 +195,7 @@ class TheSeed():
         n = 0
         i = 0
         e = 0
-        s_array = [53, 152, 166, 1, 230, 68, 121, 84, 40, 38, 50, 3, 19, 41, 151, 74, 145, 238, 42, 202, 237, 59, 255, 31, 69, 56, 4, 198, 90, 60, 135, 249, 116, 101, 5, 87, 79, 193, 147, 48, 158, 47, 111, 44, 110, 13, 28, 223, 118, 75, 96, 61, 83, 164, 21, 169, 14, 94, 186, 99, 89, 233, 126, 100, 167, 73, 188, 235, 168, 0, 108, 189, 224, 17, 194, 173, 7, 138, 250, 66, 142, 182, 156, 102, 139, 70, 155, 175, 105, 144, 200, 209, 241, 12, 137, 52, 106, 180, 113, 23, 149, 172, 91, 36, 34, 179, 65, 120, 141, 227, 8, 72, 184, 114, 165, 98, 25, 64, 9, 93, 39, 207, 246, 177, 159, 143, 16, 26, 213, 251, 49, 134, 204, 226, 63, 244, 77, 78, 216, 81, 199, 45, 86, 136, 171, 236, 140, 43, 150, 190, 76, 6, 215, 55, 170, 11, 239, 33, 10, 232, 220, 107, 104, 217, 82, 27, 253, 231, 20, 129, 247, 95, 176, 208, 85, 195, 30, 109, 212, 196, 254, 157, 15, 154, 92, 119, 243, 218, 24, 29, 205, 192, 221, 228, 32, 54, 22, 214, 146, 128, 131, 203, 163, 185, 252, 153, 125, 183, 88, 197, 222, 178, 132, 124, 234, 57, 51, 115, 162, 103, 160, 80, 133, 97, 206, 127, 201, 2, 248, 18, 117, 46, 219, 191, 62, 174, 123, 71, 240, 161, 122, 229, 245, 67, 242, 35, 181, 225, 37, 210, 211, 112, 58, 187, 148, 130]
+        s_array = list(self.decode_array)
         
         for pos in range(len(stream)):
             n = (n + 1) & 0xFF
@@ -185,7 +204,7 @@ class TheSeed():
             s_array[n] = s_array[i]
             s_array[i] = e
             stream[pos] ^= s_array[(s_array[n] + s_array[i]) & 0xFF]
-
+    
     @classmethod
     def inflate(cls, data):
         decompress = zlib.decompressobj(zlib.MAX_WBITS)
@@ -193,7 +212,7 @@ class TheSeed():
         inflated = decompress.decompress(data)
         inflated += decompress.flush()
 
-        return inflated        
+        return inflated
         
     def parse_error(self):
         err_inst = None
@@ -203,6 +222,8 @@ class TheSeed():
 
             if '편집요청 권한이 부족' in self.state['page']['data']['content']:
                 err_type = 'permission_edit_request'
+            elif '문서를 찾을 수 없습니다.' in self.state['page']['data']['content']:
+                err_type = 'document_not_found'
 
             err_inst = Error(err_type, self.state['page']['data']['content'])
         
@@ -211,6 +232,8 @@ class TheSeed():
             
             if 'document' in self.state['page']['data']:
                 err_inst = Error(err['code'], err['msg'], str(Document(self.state['page']['data']['document'])))
+            else:
+                err_inst = Error(err['code'], err['msg'])
         
         if self.state['session']['member']:
             if 'user_document_discuss' in self.state['session']['member']:
@@ -223,16 +246,45 @@ class TheSeed():
             self.logger.error(str(err_inst))
             raise err_inst
 
-    def parse_chika(self, response):
+    def parse_strings(self, response):
         matches = self.rx_parse_script_url.findall(response.text)
         script_url = matches[2]
 
         script_response = requests.get(self.url(script_url))
-
-        rx_find_chika = re.compile(r'"X-Chika":"([0-9a-f]*?)",')
-
+        
+        rx_js_var = re.compile(r'var ([A-Za-z0-9_]+)=\[(.*?)\];')
+        rx_js_array256 = re.compile(r'\[(((0x[0-9A-Fa-f]+),){255}(0x[0-9A-Fa-f]+))\]')
+        js_var_match = rx_js_var.search(script_response.text)
+        
+        str_var = js_var_match[1]
+        str_raw = js_var_match[2]
+        
+        rx_quotes = re.compile(r"(?<!\\)'")
+        quote_pos = None
+        for m in rx_quotes.finditer(str_raw):
+            if not quote_pos:
+                quote_pos = m.start(0) + 1
+            else:
+                self.strings.append(str_raw[quote_pos:m.start(0)])
+                quote_pos = None
+        
+        self.decode_array = []
+        
+        rx_js_rotate = re.compile(rf'\({str_var},(0x[0-9A-Fa-f]+)\)')
+        str_rotate = int(rx_js_rotate.search(script_response.text)[1], 16)
+        
+        decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')
+        for i in range(256):
+            self.decode_array.append(int(decode_array_match[i], 16))
+        
+        self.strings = self.strings[str_rotate:] + self.strings[:str_rotate]
+        
+        rx_find_chika = re.compile(r"'X-Chika': *[a-z0-9_]+\('(.*?)'\),")
+        
         chika_match = rx_find_chika.search(script_response.text)
-        self.x_chika = chika_match[1]
+        chika_string_id = int(chika_match[1], 16)
+        
+        self.x_chika = self.strings[chika_string_id]
 
         self.logger.debug('Parse X-Chika: {}'.format(self.x_chika))
     
@@ -242,18 +294,20 @@ class TheSeed():
         finished = False
         loop_count = 0
         response = None
+        
+        headers = {'user-agent': self.user_agent}
 
-        while not finished and loop_count < 3:
+        while not finished and loop_count < self.max_loop_count:
             loop_count += 1
                 
             self.set_wait('access')
 
             if req_type == "get":
-                response = requests.get(str(url), cookies=self.cookies)
+                response = requests.get(str(url), cookies=self.cookies, headers=headers)
             elif req_type == "post":
-                response = requests.post(str(url), data=parameter, cookies=self.cookies)
+                response = requests.post(str(url), data=parameter, cookies=self.cookies, headers=headers)
             elif req_type == "post.multipart":
-                response = requests.post(str(url), files=parameter, cookies=self.cookies)
+                response = requests.post(str(url), files=parameter, cookies=self.cookies, headers=headers)
             else:
                 raise TypeError('{} is invalid request type'.format(req_type))
                 
@@ -274,7 +328,7 @@ class TheSeed():
                 self.state = json.loads(content)
 
                 if not self.is_loaded:
-                    self.parse_chika(response)
+                    self.parse_strings(response)
 
                 self.is_loaded = True
             else:
@@ -282,8 +336,8 @@ class TheSeed():
             
             finished = True
 
-        with open('response.txt', mode='w') as f:
-            json.dump(self.state, f, sort_keys=True, indent=4)
+        with open('response.txt', mode='w', encoding='utf-8') as f:
+            json.dump(self.state, f, ensure_ascii=False, sort_keys=True, indent=4)
         
         self.parse_error()
 
@@ -296,17 +350,16 @@ class TheSeed():
         loop_count = 0
         response = None
 
-        while not finished and loop_count < 3:
+        while not finished and loop_count < self.max_loop_count:
             loop_count += 1
 
             url.baseurl = '/internal/'
             headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
-                'X-You': self.state['config']['hash'], 'charset': 'utf-8'}
+                'X-You': self.state['config']['hash'], 'charset': 'utf-8', 'user-agent': self.user_agent}
 
             self.set_wait('access')
 
             if req_type == "get":
-                url.parameter['_'] = int(time.time())
                 response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
             elif req_type == "post":
                 response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
@@ -322,8 +375,9 @@ class TheSeed():
                 continue
             
             if not 'x-ruby' in response.headers:
-                with open('response.txt', mode='w') as f:
-                    json.dump(dict(response.headers), f, sort_keys=True, indent=4)
+                print(response.text)
+                with open('response.txt', mode='w', encoding='utf-8') as f:
+                    json.dump(dict(response.headers), f, ensure_ascii=False, sort_keys=True, indent=4)
                 raise ValueError('invalid response received')
 
             if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
@@ -342,8 +396,8 @@ class TheSeed():
             
             finished = True
                 
-        with open('response.txt', mode='w') as f:
-            json.dump(self.state, f, sort_keys=True, indent=4)
+        # with open('response.txt', mode='w', encoding='utf-8') as f:
+            # json.dump(self.state, f, ensure_ascii=False, sort_keys=True, indent=4)
         
         if self.state['page']['status'] == 200:
             self.parse_error()
@@ -357,7 +411,7 @@ class TheSeed():
         if 'session' in self.state['page']:
             self.state['session'].update(self.state['page']['session'])
             del self.state['page']['session']
-
+        
         return response
         
         
@@ -388,15 +442,15 @@ class TheSeed():
         self.cookies = self.config['member']['cookies']
     
     def init_config(self):
-        with open(self.config_path, 'w') as config_file:
-            json.dump(self.config, config_file, sort_keys=True, indent=4)
+        with open(self.config_path, 'w', encoding='utf-8') as config_file:
+            json.dump(self.config, config_file, ensure_ascii=False, sort_keys=True, indent=4)
     
     def save_config(self):
         if not self.config_path:
             self.config_path = self.default_config_path
 
-        with open(self.config_path, 'w') as config_file:
-            json.dump(self.config, config_file, sort_keys=True, indent=4)
+        with open(self.config_path, 'w', encoding='utf-8') as config_file:
+            json.dump(self.config, config_file, ensure_ascii=False, sort_keys=True, indent=4)
     
     def read_config(self, key):
         keys = key.split('.')
@@ -498,7 +552,108 @@ class TheSeed():
 
         return text
     
-    def edit(self, title, callback, section = None, log = '', request = False):
+    def history(self, title, from_ = None, until = None, page = -1):
+        '''
+        "page"
+            "data"
+                "document"
+                    "namespace"
+                    "title"
+                "history" []
+                    "rev"
+                    "log"
+                    "date"
+                    "author" or "ip"
+                    "count"
+                    "logtype"
+                    "target_rev"
+                    "blocked"
+                
+        '''
+
+        history = []
+        finished = False
+        next_rev = None
+        
+        i = 0
+
+        while not finished and (page < 0 or i < page):
+            parameters = {}
+            if from_ and not next_rev:
+                parameters['from'] = from_
+            elif next_rev:
+                parameters['from'] = next_rev
+            
+            self.get(self.document_url(title, 'history', parameter=parameters))
+
+            history_json = self.state['page']['data']['history']
+
+            next_rev = self.state['page']['data']['from']
+
+            if until:
+                if not next_rev:
+                    finished = True
+                elif until < next_rev:
+                    finished = True
+            else:
+                if not next_rev:
+                    finished = True
+
+            for h in history_json:
+                pass_doc = False
+
+                if from_ and h['rev'] > from_:
+                    pass_doc = True
+
+                if until and h['rev'] < until:
+                    pass_doc = True
+                
+                if not pass_doc:
+                    history.append(h)
+            
+            self.logger.debug('Success (history, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
+            i += 1
+
+        self.logger.info('Success (history, {})'.format(title))
+
+        return history
+    
+    def edit_request(self, slug):
+        '''
+        "page"
+            "data"
+                "body"
+                "document"
+                    "namespace"
+                    "title"
+                "editRequest"
+                    "slug"
+                    "status" (accepted|open|closed)
+                    "accepter_author"
+                    "baserev"
+                    "log"
+                    "author"
+                    "ip"
+                    "created"
+                    "updated"
+                    "accepted_rev"
+                    "close_reason"
+                "isAcceptable"
+                "isOwnEditRequest"
+                "isConflicted"
+                "diffoutput"
+                "updateThreadStatus"
+        '''
+
+        self.get(self.document_url(slug, 'edit_request'))
+
+        edit_request = self.state['page']['data']['editRequest']
+
+        self.logger.info('Success (edit_request, {})'.format(slug))
+
+        return edit_request
+    
+    def edit(self, title, callback, section = None, request = False):
         '''
         response:
             "page"
@@ -529,30 +684,66 @@ class TheSeed():
         view_name = 'edit' if not request else 'new_edit_request'
 
         self.set_wait('edit')
+        
+        finished = False
+        loop_count = 0
+        
+        action_name = ''
+        request_exists = False
+
+        while not finished and loop_count < self.max_loop_count:
+            if not request_exists:
+                url = self.document_url(title, view_name, param)
+                action_name = view_name
+                
+            self.get(url)
             
-        self.get(self.document_url(title, view_name, param))
-        
-        data = self.state['page']['data']
-        
-        token = data['token']
-        rev = data['body']['baserev']
-        text = data['body']['text']
-        
-        new_text = callback(Document(data['document']), text)
-        
-        if new_text == None or new_text == text:
-            self.logger.info('Skip (edit, {})'.format(title))
-            return
-        
-        ide = self.state['session']['identifier']
-        
-        parameters = {'token': (None, token), 'identifier': (None, ide), 'baserev': (None, rev), 'text': (None, new_text), 'log': (None, log), 'agree': (None, 'Y')}
-        
-        if section != None:
-            parameters['section'] = (None, section)
-        
-        self.post(self.document_url(title, view_name), parameters, multipart=True)
-        self.logger.info('Success ({}, {})'.format(view_name, title))
+            if self.state['page']['status'] >= 300 and self.state['page']['status'] < 400 and not request_exists:
+                view_name = 'new_edit_request'
+                continue
+            
+            data = self.state['page']['data']
+            
+            token = data['token']
+            rev = data['body']['baserev']
+            text = data['body']['text']
+            
+            result = callback(Document(data['document']), text)
+            skip_log = 'Skip ({}, {})'.format(action_name, title)
+
+            if result == None:
+                self.logger.info(skip_log)
+                return
+            
+            new_text, log = result
+
+            if new_text == text:
+                self.logger.info(skip_log)
+                return
+            
+            ide = self.state['session']['identifier']
+            
+            parameters = {'token': (None, token), 'identifier': (None, ide), 'baserev': (None, rev), 'text': (None, new_text), 'log': (None, log), 'agree': (None, 'Y')}
+            
+            if section != None:
+                parameters['section'] = (None, section)
+            
+            try:
+                self.post(self.document_url(title, view_name), parameters, multipart=True)
+            except Error as err:
+                if err.code == 'already_edit_request_exists':
+                    slug = self.find_my_edit_request(title)
+                    action_name = 'edit_my_request'
+                    url = self.document_url(slug + '/edit', 'edit_request')
+                    request_exists = True
+                else:
+                    raise err
+            else:
+                finished = True
+            
+            loop_count += 1
+
+        self.logger.info('Success ({}, {})'.format(action_name, title))
             
         self.wait('edit')
     
@@ -591,7 +782,7 @@ class TheSeed():
         self.wait('edit')
 
         if make_redirect:
-            self.edit(origin, lambda a, b: '#redirect {}'.format(target), log='자동 생성된 리다이렉트')
+            self.edit(origin, lambda a, b: ('#redirect {}'.format(target), '자동 생성된 리다이렉트'))
 
     def delete(self, title, log = ''):
         '''
@@ -659,14 +850,30 @@ class TheSeed():
         except Error as err:
             self.logger.error(err)
         else:
-            self.logger.info('Success (login, {})'.format(id))
-            
             # record cookies
-            if 'honoka' in response.cookies:
-                self.cookies['honoka'] = response.cookies['honoka']
-                
             if 'kotori' in response.cookies:
                 self.cookies['kotori'] = response.cookies['kotori']
+            
+            # pin
+            if self.state['page']['viewName'] == 'login_pin':
+                while True:
+                    pin = input('{}로 도착한 PIN을 입력하세요: '.format(self.state['page']['data']['email']))
+                    
+                    if not pin:
+                        return
+                    
+                    try:
+                        response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
+                    except Error as err:
+                        continue
+                    
+                    if self.state['page']['status'] == 302:
+                        break
+                        
+            self.logger.info('Success (login, {})'.format(id))
+            
+            if 'honoka' in response.cookies:
+                self.cookies['honoka'] = response.cookies['honoka']
                 
             if 'umi' in response.cookies:
                 self.cookies['umi'] = response.cookies['umi']
@@ -769,7 +976,9 @@ class TheSeed():
             next_doc = self.state['page']['data']['from']
 
             if until:
-                if until < next_doc:
+                if not next_doc:
+                    finished = True
+                elif until < next_doc:
                     finished = True
             else:
                 if not next_doc:
@@ -794,9 +1003,252 @@ class TheSeed():
         self.logger.info('Success (backlink, {})'.format(title))
 
         return document_list
+    
+    def _category(self, title, namespace, from_ = None, until = None):
+        '''
+        "page"
+            "data"
+                "body"
+                "category" []
+                    "doc"
+                        "namespace"
+                        "title"
+                    "exist"
+                "document"
+                    "forceShowNamespace" (optional)
+                    "namespace"
+                    "title"
+                "discuss_progress"
+                "date"
+                "redirect"
+                "enable_ads"
+                "enable_powerlink"
+                "star_count"
+                "starred"
+                "rev"
+                "content"
+                "categorys" []
+                    "namespace"
+                    "total"
+                    "isCategoryNamespace"
+                    "categorys" {[]}
+                        "doc"
+                        "type"
+                    "from"
+                    "until"
+            "meta"
+            "title"
+            "viewName"
+        '''
+        document_list = []
+        finished = False
+        next_doc = None
 
-class BacklinkFlags():
-    file = 2
-    include = 4
-    link = 1
-    redirect = 8
+        while not finished:
+            parameters = {}
+            if from_ and not next_doc:
+                parameters['cfrom'] = from_
+            elif next_doc:
+                parameters['cfrom'] = next_doc
+            
+            if namespace:
+                parameters['namespace'] = namespace
+            
+            self.get(self.document_url(Namespaces.category + ':' + title, 'w', parameter=parameters))
+
+            categories_json = None
+
+            for category_list in self.state['page']['data']['categorys']:
+                if category_list['namespace'] == namespace:
+                    categories_json = category_list
+            
+            if not categories_json:
+                break
+
+            next_doc = categories_json['from']
+
+            if until:
+                if not next_doc:
+                    finished = True
+                elif until < next_doc:
+                    finished = True
+            else:
+                if not next_doc:
+                    finished = True
+
+            for links in categories_json['categorys'].values():
+                for link in links:
+                    doc = Document(link)
+                    pass_doc = False
+
+                    if from_ and doc.title < from_:
+                        pass_doc = True
+
+                    if until and doc.title > until:
+                        pass_doc = True
+                    
+                    if not pass_doc:
+                        document_list.append(doc)
+            
+            self.logger.debug('Success (category, {}{}, partial)'.format(title, ' - from {}'.format(parameters['cfrom']) if 'cfrom' in parameters else ''))
+
+        self.logger.info('Success (category, {})'.format(title))
+
+        return document_list
+    
+    def category(self, title, namespace, exclude = [], from_ = None, until = None, recursive = -1):
+        if title in exclude:
+            return []
+        
+        document_list = self._category(title, namespace, from_, until)
+        
+        if recursive != 0:
+            category_list = self._category(title, Namespaces.category, from_, until)
+            
+            exclude.append(title)
+            
+            for category in category_list:
+                document_list.extend(self.category(category.title, namespace, exclude, from_, until, recursive - 1))
+        
+        titles = []
+        
+        result = []
+        
+        for document in document_list:
+            if not str(document) in titles:
+                titles.append(str(document))
+                result.append(document)
+        
+        return result
+    
+    def thread_list(self, title, type_ = 'discuss'):
+        '''
+        "page"
+            "data":
+                "document"
+                    "namespace"
+                    "title"
+                "thread_list" []
+                    "discuss" []
+                        "id"
+                        "author"
+                        "text"
+                        "date"
+                        "hide_author"
+                        "type"
+                        "admin"
+                        "blocked"
+                    "slug"
+                    "topic"
+                "editRequests" []
+                    "slug"
+                "deleteThread"
+                "body"
+        '''
+        result = []
+
+        parameters = {}
+
+        if type_ == 'closed_edit_request':
+            parameters['state'] = 'closed_edit_requests'
+        elif type_ == 'closed_discuss':
+            parameters['state'] = 'close'
+
+        self.get(self.document_url(title, 'discuss', parameter=parameters))
+
+        if type_ == 'discuss':
+            for thread in self.state['page']['data']['thread_list']:
+                result.append(thread['slug'])
+        
+        elif type_ == 'edit_request' or type_ == 'closed_edit_request':
+            for edit_request in self.state['page']['data']['editRequests']:
+                result.append(edit_request['slug'])
+ 
+        return result
+    
+    def find_my_edit_request(self, title):
+        edit_requests = self.thread_list(title, 'edit_request')
+
+        for slug in edit_requests:
+            info = self.edit_request(slug)
+            
+            if info['status'] != 'open':
+                continue
+
+            if info['author'] == self.read_config('member.username'):
+                return slug
+        
+        return None
+    
+    def _meta_pages(self, view_name, namespace = None, from_ = None, until = None):
+        '''
+        "page"
+            "data":
+                "selectedNamespace"
+                "namespaces"
+                "orphanedpages|neededpages|uncategorizedpages" []
+                    "id"
+                    "doc"
+                        "namespace"
+                        "title"
+                "from"
+                "until"
+                "body"
+        '''
+
+        document_list = []
+        finished = False
+        next_doc = None
+
+        while not finished:
+            parameters = {}
+            if from_ and not next_doc:
+                parameters['from'] = from_
+            elif next_doc:
+                parameters['from'] = next_doc
+            
+            if namespace:
+                parameters['namespace'] = namespace
+            
+            self.get(self.url(view_name, parameter=parameters))
+
+            pages_json = self.state['page']['data'][view_name.lower()]
+
+            next_doc = self.state['page']['data']['from']
+
+            if until:
+                if not next_doc:
+                    finished = True
+                elif until < next_doc:
+                    finished = True
+            else:
+                if not next_doc:
+                    finished = True
+
+            for page in pages_json:
+                doc = Document(page['doc'])
+                pass_doc = False
+
+                if from_ and doc.title < from_:
+                    pass_doc = True
+
+                if until and doc.title > until:
+                    pass_doc = True
+                
+                if not pass_doc:
+                    document_list.append(doc)
+            
+            self.logger.debug('Success ({}{}, partial)'.format(view_name, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
+
+        self.logger.info('Success ({})'.format(view_name))
+
+        return document_list
+    
+    def orphaned_pages(self, namespace = None, from_ = None, until = None):
+        return self._meta_pages('OrphanedPages', namespace, from_, until)
+    
+    def uncategorized_pages(self, namespace = None, from_ = None, until = None):
+        return self._meta_pages('UncategorizedPages', namespace, from_, until)
+    
+    def needed_pages(self, namespace = None, from_ = None, until = None):
+        return self._meta_pages('NeededPages', namespace, from_, until)
