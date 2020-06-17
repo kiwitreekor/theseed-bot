@@ -95,7 +95,7 @@ class Namespaces():
 
 class TheSeed():
     rx_parse_content = re.compile(r'<script>window\.INITIAL_STATE=(\{.*?\})</script>')
-    rx_parse_script_url = re.compile(r'<script src="/(skins/.*?/.*?\.js)" defer></script>')
+    rx_parse_script_url = re.compile(r'<script src="/(skins/[^<>]*?/main\.[^<>]*?\.js)" defer></script>')
     x_chika = ''
     cookies = {}
     strings = []
@@ -253,8 +253,8 @@ class TheSeed():
             raise err_inst
 
     def parse_strings(self, response):
-        matches = self.rx_parse_script_url.findall(response.text)
-        script_url = matches[2]
+        match = self.rx_parse_script_url.search(response.text)
+        script_url = match[1]
 
         script_response = requests.get(self.url(script_url))
         
@@ -322,6 +322,7 @@ class TheSeed():
             content_type = response.headers['content-type'].split(';')[0].strip().casefold()
             if content_type == 'text/html':
                 if response.status_code == 429:
+                    # IP로 감지하는 리캡차이므로 브라우저를 켜서 해결하면 됨.
                     input('Resolve the recaptcha.')
                     continue
 
