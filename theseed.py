@@ -1,4 +1,4 @@
-import requests, re, urllib.parse, json, os.path, time, logging, quickjs, zlib
+import requests, re, urllib.parse, json, os.path, time, logging, quickjs, zlib, hashlib, base64
 from bs4 import BeautifulSoup
 
 # theseed v4.17.3
@@ -166,10 +166,6 @@ class TheSeed():
         self.logger.setLevel(level=logging.DEBUG)
 
         self.state = {}
-
-        with open('theseed_hash.js', mode='r', encoding='utf-8') as f:
-            theseed_hash_js = f.read()
-            self.theseed_nonce_hash = quickjs.Function('u', theseed_hash_js)
         
     # helper functions
     def url(self, url_, parameter = {}):
@@ -190,6 +186,16 @@ class TheSeed():
         time.sleep(max(self.wait_start[_type] + wait_time / 1000 - time.time(), 0))
         
         del self.wait_start[_type]
+    
+    def theseed_nonce_hash(self, value):
+        bvalue = value.encode('utf-8')
+        
+        m = hashlib.md5()
+        m.update(bvalue)
+        
+        hash = m.digest()[:16]
+        
+        return base64.b64encode(hash)
     
     def decode_internal(self, stream):
         n = 0
