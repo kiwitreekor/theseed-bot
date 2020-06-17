@@ -1,4 +1,4 @@
-import requests, re, urllib.parse, json, os.path, time, logging, quickjs, zlib, hashlib, base64
+import requests, re, urllib.parse, json, os.path, time, logging, zlib, hashlib, base64
 from bs4 import BeautifulSoup
 
 # theseed v4.17.3
