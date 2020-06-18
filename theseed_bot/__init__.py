@@ -1,1 +1,0 @@
-from theseed import *
