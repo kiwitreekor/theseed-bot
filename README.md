@@ -3,10 +3,11 @@
 the seed 계열을 위한 API 제공.
 
 ## 설치
-`python setup.py install`
+    pip install -r requirements.txt
+    python setup.py install
 
 ## 사용
-`from theseed_bot import theseed`를 추가.
+    from theseed_bot import theseed
 
 예시 스크립트:
 
