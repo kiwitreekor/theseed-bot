@@ -524,6 +524,13 @@ class TheSeed():
 
         self.get(self.document_url(title, 'w', param))
 
+        if self.state['page']['viewName'] == 'notfound':
+            self.logger.info('Not Found (w, {})'.format(title))
+
+            return None
+
+        assert self.state['page']['viewName'] == 'wiki'
+
         data = self.state['page']['data']
         rev = data['rev']
 
