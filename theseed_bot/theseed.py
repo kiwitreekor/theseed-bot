@@ -380,13 +380,17 @@ class TheSeed():
             if response.status_code == 429:
                 input('Resolve the recaptcha.')
                 continue
-            
+            elif response.status_code == 400:
+                # Frontend update detected
+                self.is_loaded = False
+                return self.request_init(req_type, url, parameter)
+
             if not 'x-ruby' in response.headers:
                 print(response.text)
                 with open('response.txt', mode='w', encoding='utf-8') as f:
                     json.dump(dict(response.headers), f, ensure_ascii=False, sort_keys=True, indent=4)
                 raise ValueError('invalid response received')
-
+            
             if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
                 raise ValueError('invalid response received')
             
