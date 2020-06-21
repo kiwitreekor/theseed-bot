@@ -1250,6 +1250,30 @@ class TheSeed():
         self.logger.info('Success (thread, {})'.format(slug))
 
         return result
+    
+    def create_thread(self, document, topic, text):
+        '''
+        request:
+            identifier
+            topic
+            text
+        '''
+        parameters = {'identifier': (self.state['session']['identifier']), 'topic': topic, 'text': (text)}
+        self.post(self.document_url(document, 'discuss'), parameters)
+
+        if self.state['page']['status'] != '302':
+            raise Error('no permission!')
+
+        target_url = self.state['page']['url']
+        match = re.match(r'/thread/(.*)', target_url)
+
+        assert match
+        
+        slug = match[1]
+
+        self.logger.info('Success (create_thread, {})'.format(slug))
+
+        return slug
 
     def comment_thread(self, slug, text):
         '''
