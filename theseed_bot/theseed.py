@@ -1032,7 +1032,7 @@ class TheSeed():
 
         return document_list
     
-    def _category(self, title, namespace, from_ = None, until = None):
+    def _category(self, title, namespaces = None, from_ = None, until = None):
         '''
         "page"
             "data"
@@ -1069,74 +1069,82 @@ class TheSeed():
             "viewName"
         '''
         document_list = []
-        finished = False
-        next_doc = None
+        
+        if namespaces == None:
+            # load all namespaces
+            self.get(self.document_url(Namespaces.category + ':' + title, 'w'))
 
-        while not finished:
-            parameters = {}
-            if from_ and not next_doc:
-                parameters['cfrom'] = from_
-            elif next_doc:
-                parameters['cfrom'] = next_doc
+            namespaces = [x['namespace'] for x in self.state['page']['data']['categorys']]
+
+        for namespace in namespaces:
+            finished = False
+            next_doc = None
             
-            if namespace:
-                parameters['namespace'] = namespace
-            
-            self.get(self.document_url(Namespaces.category + ':' + title, 'w', parameter=parameters))
+            while not finished:
+                parameters = {}
+                if from_ and not next_doc:
+                    parameters['cfrom'] = from_
+                elif next_doc:
+                    parameters['cfrom'] = next_doc
+                
+                if namespace:
+                    parameters['namespace'] = namespace
+                
+                self.get(self.document_url(Namespaces.category + ':' + title, 'w', parameter=parameters))
 
-            categories_json = None
+                categories_json = None
 
-            for category_list in self.state['page']['data']['categorys']:
-                if category_list['namespace'] == namespace:
-                    categories_json = category_list
-            
-            if not categories_json:
-                break
+                for category_list in self.state['page']['data']['categorys']:
+                    if category_list['namespace'] == namespace:
+                        categories_json = category_list
+                
+                if not categories_json:
+                    break
 
-            next_doc = categories_json['from']
+                next_doc = categories_json['from']
 
-            if until:
-                if not next_doc:
-                    finished = True
-                elif until < next_doc:
-                    finished = True
-            else:
-                if not next_doc:
-                    finished = True
+                if until:
+                    if not next_doc:
+                        finished = True
+                    elif until < next_doc:
+                        finished = True
+                else:
+                    if not next_doc:
+                        finished = True
 
-            for links in categories_json['categorys'].values():
-                for link in links:
-                    doc = Document(link)
-                    pass_doc = False
+                for links in categories_json['categorys'].values():
+                    for link in links:
+                        doc = Document(link)
+                        pass_doc = False
 
-                    if from_ and doc.title < from_:
-                        pass_doc = True
+                        if from_ and doc.title < from_:
+                            pass_doc = True
 
-                    if until and doc.title > until:
-                        pass_doc = True
-                    
-                    if not pass_doc:
-                        document_list.append(doc)
-            
-            self.logger.debug('Success (category, {}{}, partial)'.format(title, ' - from {}'.format(parameters['cfrom']) if 'cfrom' in parameters else ''))
+                        if until and doc.title > until:
+                            pass_doc = True
+                        
+                        if not pass_doc:
+                            document_list.append(doc)
+                
+                self.logger.debug('Success (category, {}{}, partial)'.format(title, ' - from {}'.format(parameters['cfrom']) if 'cfrom' in parameters else ''))
 
         self.logger.info('Success (category, {})'.format(title))
 
         return document_list
     
-    def category(self, title, namespace, exclude = [], from_ = None, until = None, recursive = -1):
+    def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1):
         if title in exclude:
             return []
         
-        document_list = self._category(title, namespace, from_, until)
+        document_list = self._category(title, namespaces, from_, until)
         
         if recursive != 0:
-            category_list = self._category(title, Namespaces.category, from_, until)
+            category_list = self._category(title, [Namespaces.category], from_, until)
             
             exclude.append(title)
             
             for category in category_list:
-                document_list.extend(self.category(category.title, namespace, exclude, from_, until, recursive - 1))
+                document_list.extend(self.category(category.title, namespaces, exclude, from_, until, recursive - 1))
         
         titles = []
         
