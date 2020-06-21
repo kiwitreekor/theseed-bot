@@ -19,6 +19,20 @@ the seed 계열을 위한 API 제공.
 
 로그인이 필요한 경우, 최소 1회 스크립트를 실행한 뒤 생성되는 config.json에 ID와 비밀번호 입력.
 
+## 설정 파일
+기본적으로 터미널이 실행되고 있는 경로에 생성됨.
+
+* general
+    * access_interval: 일반적인 접속 시 시간 간격
+    * edit_interval: 편집 시 시간 간격
+    * confirmed_user_discuss: 사용자 토론이 확인된 시각
+    * log_level: 로그 수준
+    * log_path: 로그 파일 경로
+* member
+    * id: ID
+    * password: 비밀번호
+    * cookies: 쿠키 정보
+
 ## 지원하는 기능
 
 * no-force-recaptcha를 요구하지 않는 기능
