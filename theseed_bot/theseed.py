@@ -141,7 +141,7 @@ class TheSeed():
             "hash"
     '''
     
-    def __init__(self, host, config_path = '', log_level = logging.INFO):
+    def __init__(self, host, config_path = ''):
         self.host = host
         
         self.config_path = config_path
@@ -151,6 +151,7 @@ class TheSeed():
 
         self.is_loaded = False
         
+        log_level = self.read_config('general.log_level')
         log_formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(filename)s:%(lineno)s] >> %(message)s')
         
         log_file_handler = logging.FileHandler(self.read_config('general.log_path'), encoding='utf-8')
@@ -159,11 +160,11 @@ class TheSeed():
         
         log_stream_handler = logging.StreamHandler()
         log_stream_handler.setFormatter(log_formatter)
-        log_stream_handler.setLevel(level=logging.DEBUG)
+        log_stream_handler.setLevel(level=log_level)
         
         self.logger.addHandler(log_file_handler)
         self.logger.addHandler(log_stream_handler)
-        self.logger.setLevel(level=self.read_config('general.log_level'))
+        self.logger.setLevel(level=log_level)
 
         self.state = {}
     
