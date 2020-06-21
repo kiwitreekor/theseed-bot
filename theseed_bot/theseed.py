@@ -73,7 +73,7 @@ class Document():
             self.force_show_namespace = data['forceShowNamespace']
     
     def __repr__(self):
-        return 'TheSeedDocument(' + str(self) + ')'
+        return "'" + str(self) + "'"
     
     def __str__(self):
         if self.force_show_namespace:
@@ -947,7 +947,7 @@ class TheSeed():
         else:
             return search
 
-    def backlink(self, title, from_ = None, until = None, namespace = None, flag = None):
+    def backlink(self, title, from_ = None, until = None, namespaces = None, flag = None):
         '''
         response:
             "page"
@@ -969,54 +969,64 @@ class TheSeed():
                     "selectedFlag"
                     "selectedNamespace"
         '''
-
         document_list = []
-        finished = False
-        next_doc = None
 
-        while not finished:
-            parameters = {}
-            if from_ and not next_doc:
-                parameters['from'] = from_
-            elif next_doc:
-                parameters['from'] = next_doc
-            
-            if namespace:
-                parameters['namespace'] = namespace
-            
-            if flag:
-                parameters['flag'] = flag
-            
-            self.get(self.document_url(title, 'backlink', parameter=parameters))
+        if namespaces == None:
+            # load all namespaces
+            self.get(self.document_url(title, 'backlink'))
 
-            backlink_json = self.state['page']['data']['backlinks']
+            namespaces = [x['namespace'] for x in self.state['page']['data']['namespaces']]
 
-            next_doc = self.state['page']['data']['from']
+        for namespace in namespaces:
+            finished = False
+            next_doc = None
 
-            if until:
-                if not next_doc:
-                    finished = True
-                elif until < next_doc:
-                    finished = True
-            else:
-                if not next_doc:
-                    finished = True
+            while not finished:
+                parameters = {}
+                if from_ and not next_doc:
+                    parameters['from'] = from_
+                elif next_doc:
+                    parameters['from'] = next_doc
+                
+                if namespace:
+                    parameters['namespace'] = namespace
+                
+                if flag:
+                    parameters['flag'] = flag
+                
+                self.get(self.document_url(title, 'backlink', parameter=parameters))
 
-            for backlinks in backlink_json.values():
-                for backlink in backlinks:
-                    doc = Document(backlink['doc'])
-                    pass_doc = False
+                backlink_json = self.state['page']['data']['backlinks']
 
-                    if from_ and doc.title < from_:
-                        pass_doc = True
+                next_doc = self.state['page']['data']['from']
 
-                    if until and doc.title > until:
-                        pass_doc = True
-                    
-                    if not pass_doc:
-                        document_list.append((doc, backlink['type']))
-            
-            self.logger.debug('Success (backlink, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
+                if until:
+                    if not next_doc:
+                        finished = True
+                    elif until < next_doc:
+                        finished = True
+                else:
+                    if not next_doc:
+                        finished = True
+
+                for backlinks in backlink_json.values():
+                    for backlink in backlinks:
+                        doc = Document(backlink['doc'])
+                        pass_doc = False
+
+                        if from_ and doc.title < from_:
+                            pass_doc = True
+
+                        if until and doc.title > until:
+                            pass_doc = True
+                        
+                        if not pass_doc:
+                            if flag != None:
+                                document_list.append(doc)
+                            else:
+                                document_list.append((doc, backlink['type']))
+                
+                self.logger.debug('Success (backlink, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
 
         self.logger.info('Success (backlink, {})'.format(title))
 
