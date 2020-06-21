@@ -1133,6 +1133,9 @@ class TheSeed():
         return document_list
     
     def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1):
+        if exclude == None:
+            exclude = []
+
         if title in exclude:
             return []
         
