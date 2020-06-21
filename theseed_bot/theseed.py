@@ -1247,7 +1247,21 @@ class TheSeed():
             if c['id'] in comment:
                 result['comments'].append(c)
 
+        self.logger.info('Success (thread, {})'.format(slug))
+
         return result
+
+    def comment_thread(self, slug, text):
+        '''
+        request:
+            identifier
+            text
+        '''
+
+        parameters = {'identifier': (self.state['session']['identifier']), 'text': (text)}
+        self.post(self.document_url(slug, 'thread'), parameters)
+
+        self.logger.info('Success (comment_thread, {})'.format(slug))
     
     def find_my_edit_request(self, title):
         edit_requests = self.thread_list(title, 'edit_request')
