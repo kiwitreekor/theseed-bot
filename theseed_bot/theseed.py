@@ -102,7 +102,7 @@ class TheSeed():
     
     decode_array = []
     
-    config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
+    initial_config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'log_level': 20, 'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
     default_config_path = 'config.json'
     config_path = ''
     
@@ -163,9 +163,12 @@ class TheSeed():
         
         self.logger.addHandler(log_file_handler)
         self.logger.addHandler(log_stream_handler)
-        self.logger.setLevel(level=logging.DEBUG)
+        self.logger.setLevel(level=self.read_config('general.log_level'))
 
         self.state = {}
+    
+    def __del__(self):
+        self.save_config()
         
     # helper functions
     def url(self, url_, parameter = {}):
@@ -447,14 +450,26 @@ class TheSeed():
             self.init_config()
             return
         
+        self.config = self.initial_config
+        
         with open(self.config_path, 'r') as config_file:
-            self.config = json.load(config_file)
+            config = json.load(config_file)
+        
+        def update(d, u):
+            for k, v in u.items():
+                if isinstance(v, dict):
+                    d[k] = update(d.get(k, {}), v)
+                else:
+                    d[k] = v
+            return d
+        
+        self.config = update(self.config, config)
             
         self.cookies = self.config['member']['cookies']
     
     def init_config(self):
         with open(self.config_path, 'w', encoding='utf-8') as config_file:
-            json.dump(self.config, config_file, ensure_ascii=False, sort_keys=True, indent=4)
+            json.dump(self.initial_config, config_file, ensure_ascii=False, sort_keys=True, indent=4)
     
     def save_config(self):
         if not self.config_path:
