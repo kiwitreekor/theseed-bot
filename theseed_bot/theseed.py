@@ -1076,6 +1076,9 @@ class TheSeed():
 
             namespaces = [x['namespace'] for x in self.state['page']['data']['categorys']]
 
+            if Namespaces.category in namespaces:
+                del namespaces[namespaces.index(Namespaces.category)]
+
         for namespace in namespaces:
             finished = False
             next_doc = None
