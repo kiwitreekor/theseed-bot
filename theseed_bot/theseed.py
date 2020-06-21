@@ -343,8 +343,8 @@ class TheSeed():
             
             finished = True
 
-        with open('response.txt', mode='w', encoding='utf-8') as f:
-            json.dump(self.state, f, ensure_ascii=False, sort_keys=True, indent=4)
+        # with open('response.txt', mode='w', encoding='utf-8') as f:
+            # json.dump(self.state, f, ensure_ascii=False, sort_keys=True, indent=4)
         
         self.parse_error()
 
@@ -1182,6 +1182,71 @@ class TheSeed():
             for edit_request in self.state['page']['data']['editRequests']:
                 result.append(edit_request['slug'])
  
+        return result
+    
+    def thread(self, slug, comment = None):
+        '''
+        main response
+            "page"
+                "data":
+                    "document"
+                        "namespace"
+                        "title"
+                    "status" (normal|pause|close)
+                    "topic"
+                    "slug"
+                    "comments" []
+                        "id"
+                        "hide_author"
+                    "updateThreadDocument"
+                    "updateThreadTopic"
+                    "updateThreadStatus"
+                    "hideThreadComment"
+                    "deleteThread"
+                    "body"
+        comment response
+            "comments" []
+                "id"
+                "author"
+                "ip"
+                "text"
+                "date"
+                "hide_author"
+                "type" (normal|status|document|topic)
+                "admin"
+                "blocked"
+        '''
+
+        self.get(self.document_url(slug, 'thread'))
+
+        result = {}
+
+        result['document'] = Document(self.state['page']['data']['document'])
+        result['status'] = self.state['page']['data']['status']
+        result['topic'] = self.state['page']['data']['topic']
+        result['comments'] = []
+        
+        comment_num = len(self.state['page']['data']['comments'])
+        loaded_comment = 0
+
+        comments = []
+
+        if comment == None:
+            comment = range(1, comment_num + 1)
+        
+        for i in comment:
+            if loaded_comment >= i:
+                continue
+
+            self.get(self.document_url(slug + '/{}'.format(i), 'thread'))
+            comments.extend(self.state['page']['data']['comments'])
+
+            loaded_comment = i + 30
+        
+        for c in comments:
+            if c['id'] in comment:
+                result['comments'].append(c)
+
         return result
     
     def find_my_edit_request(self, title):
