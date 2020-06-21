@@ -102,7 +102,7 @@ class TheSeed():
     
     decode_array = []
     
-    initial_config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'log_level': 20, 'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
+    initial_config = {'member': {'username': None, 'password': None, 'cookies': {}}, 'general': {'log_level': {'file': 20, 'stream': 10}, 'edit_interval': 1000, 'access_interval': 500, 'log_path': './theseed.log', 'confirmed_user_discuss': int(time.time())}}
     default_config_path = 'config.json'
     config_path = ''
     
@@ -151,20 +151,21 @@ class TheSeed():
 
         self.is_loaded = False
         
-        log_level = self.read_config('general.log_level')
+        file_log_level = self.read_config('general.log_level.file')
+        stream_log_level = self.read_config('general.log_level.stream')
         log_formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(filename)s:%(lineno)s] >> %(message)s')
         
         log_file_handler = logging.FileHandler(self.read_config('general.log_path'), encoding='utf-8')
         log_file_handler.setFormatter(log_formatter)
-        log_file_handler.setLevel(level=log_level)
+        log_file_handler.setLevel(level=file_log_level)
         
         log_stream_handler = logging.StreamHandler()
         log_stream_handler.setFormatter(log_formatter)
-        log_stream_handler.setLevel(level=log_level)
+        log_stream_handler.setLevel(level=stream_log_level)
         
         self.logger.addHandler(log_file_handler)
         self.logger.addHandler(log_stream_handler)
-        self.logger.setLevel(level=log_level)
+        self.logger.setLevel(level=min(stream_log_level, file_log_level))
 
         self.state = {}
     
