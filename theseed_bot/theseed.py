@@ -1415,7 +1415,7 @@ class TheSeed():
     def needed_pages(self, namespace = None, from_ = None, until = None):
         return self._meta_pages('NeededPages', namespace, from_, until)
 
-    def acl(self, title):
+    def acl(self, title, acl_type = None):
         '''
         "page"
             "data":
@@ -1425,6 +1425,7 @@ class TheSeed():
                 "docACL"
                     "acls"
                         "read"/"edit"/"move"/"delete"/"edit_request"/"create_thread"/"write_thread_comment"/"acl" []
+                            "id"
                             "condition"
                             "action"
                             "expired"
@@ -1436,11 +1437,23 @@ class TheSeed():
         '''
 
         self.get(self.document_url(title, 'acl'))
-        
-        result = {}
 
-        result['docACL'] = self.state['page']['data']['docACL']['acls']
-        result['nsACL'] = self.state['page']['data']['nsACL']['acls']
+        document_acl = self.state['page']['data']['docACL']['acls']
+        namespace_acl = self.state['page']['data']['nsACL']['acls']
+        
+        if not acl_type:
+            result = {}
+
+            result['docACL'] = document_acl
+            result['nsACL'] = namespace_acl
+        else:
+            if acl_type not in document_acl or acl_type not in namespace_acl:
+                raise KeyError(acl_type)
+                
+            if document_acl[acl_type]:
+                result = document_acl[acl_type]
+            else:
+                result = namespace_acl[acl_type]
 
         self.logger.info('Success (acl, {})'.format(title))
 
