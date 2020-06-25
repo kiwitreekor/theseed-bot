@@ -16,9 +16,11 @@ the seed 계열을 위한 API 제공.
     wiki = theseed.TheSeed('namu.wiki')
     
     print(wiki.raw('나무위키:대문'))
-    
+
     # 설정 파일 저장을 위해 필요함
     wiki = None 
+
+더 많은 예시는 example 폴더 참조.
 
 로그인이 필요한 경우, 최소 1회 스크립트를 실행한 뒤 생성되는 config.json에 ID와 비밀번호 입력.
 
