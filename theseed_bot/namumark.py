@@ -668,7 +668,7 @@ class LinkedText(MarkedText):
         if not match_link:
             return None
         
-        self.link = match_link[1]
+        self.link = match_link[1].strip()
         self.anchor = None
         
         if not re.match(r'https?://', match_link[1]):
