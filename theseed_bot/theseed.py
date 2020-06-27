@@ -362,7 +362,7 @@ class TheSeed():
         finished = False
         loop_count = 0
         response = None
-
+        
         while not finished and loop_count < self.max_loop_count:
             loop_count += 1
 
@@ -372,14 +372,18 @@ class TheSeed():
 
             self.set_wait('access')
 
-            if req_type == "get":
-                response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
-            elif req_type == "post":
-                response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
-            elif req_type == "post.multipart":
-                response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
-            else:
-                raise TypeError('{} is invalid request type'.format(req_type))
+            try:
+                if req_type == "get":
+                    response = requests.get(str(url), cookies=self.cookies, allow_redirects=False, headers=headers)
+                elif req_type == "post":
+                    response = requests.post(str(url), data=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+                elif req_type == "post.multipart":
+                    response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
+                else:
+                    raise TypeError('{} is invalid request type'.format(req_type))
+            except requests.exceptions.ChunkedEncodingError:
+                # https://stackoverflow.com/questions/44509423/python-requests-chunkedencodingerrore-requests-iter-lines
+                continue
                 
             self.wait('access')
             
