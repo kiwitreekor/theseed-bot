@@ -92,6 +92,7 @@ class Namespaces():
     template = '틀'
     document = '문서'
     file = '파일'
+    user = '사용자'
 
 class TheSeed():
     rx_parse_content = re.compile(r'<script>window\.INITIAL_STATE=(\{.*?\})</script>')
