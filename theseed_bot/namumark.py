@@ -1241,10 +1241,6 @@ class Table(MarkedText):
                 first = False
             
             row_num += 1
-            
-            for comment in self.comments:
-                if row_num == comment[1]:
-                    result += '\n##{}'.format(comment[0])
         
         return result
     
