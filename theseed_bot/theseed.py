@@ -381,9 +381,12 @@ class TheSeed():
                     response = requests.post(str(url), files=parameter, cookies=self.cookies, allow_redirects=False, headers=headers)
                 else:
                     raise TypeError('{} is invalid request type'.format(req_type))
-            except requests.exceptions.ChunkedEncodingError:
+            except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as e:
                 # https://stackoverflow.com/questions/44509423/python-requests-chunkedencodingerrore-requests-iter-lines
-                continue
+                if loop_count < self.max_loop_count:
+                    continue
+                else:
+                    raise e
                 
             self.wait('access')
             
