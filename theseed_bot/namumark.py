@@ -863,8 +863,13 @@ class Table(MarkedText):
     start_newline = False
     
     name = 'Table'
+
+    re_color = re.compile(r'((?:(?:^|,)([A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2})$')
+    re_length = re.compile(r'^[0-9]+(%|px)?$')
+
+    re_tablestyle = re.compile(r'<(table ?)?(.*?)(=(["\']?)(.*?)\4)?>')
     
-    style_types = [
+    special_style_types = [
         (re.compile(r'^-([0-9]+)$'), 'colspan'),
         (re.compile(r'^\|([0-9]+)$'), 'rowspan'),
         (re.compile(r'^\^\|([0-9]+)$'), 'rowspan', ('valign', 'top')),
@@ -872,8 +877,27 @@ class Table(MarkedText):
         (re.compile(r'^:$'), ('align', 'center')),
         (re.compile(r'^\($'), ('align', 'left')),
         (re.compile(r'^\)$'), ('align', 'right')),
-        (re.compile(r'((?:(?:^|,)([A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2})$'), 'bgcolor')
+        (re_color, 'bgcolor')
     ]
+
+    global_style_types = {
+        'width': re_length, 
+        'color': re_color, 
+        'bgcolor': re_color, 
+        'bordercolor': re_color,
+        'align': re.compile(r'^(left|center|right)$')
+    }
+
+    style_types = {
+        'width': re_length, 
+        'height': re_length, 
+        'color': re_color, 
+        'bgcolor': re_color, 
+        'colcolor': re_color, 
+        'colbgcolor': re_color, 
+        'rowcolor': re_color, 
+        'rowbgcolor': re_color
+    }
     
     def __init__(self, content, indent):
         super().__init__(content, indent)
@@ -895,24 +919,34 @@ class Table(MarkedText):
         assert content[offset] == '|'
         return MarkedText.parse_line(content, offset + 1, close = '|')
     
-    @classmethod
-    def parse_style(cls, content, offset = 0):
-        re_tablestyle = re.compile(r'<(.*?)(=(["\']?)(.*?)\3)?>')
-        
+    def parse_style(self, content, offset = 0):
         styles = {}
         i = offset
         
         while i < len(content):
-            match_style = re_tablestyle.match(content[i:])
+            match_style = self.re_tablestyle.match(content[i:])
             if not match_style:
                 break
+                
+            i += match_style.end()
             
-            if match_style[2]:
-                styles[match_style[1]] = match_style[4]
+            if match_style[3]:
+                if match_style[1]:
+                    if match_style[2] in self.global_style_types:
+                        if self.global_style_types[match_style[2]].search(match_style[5]):
+                            if match_style[2] not in self.styles:
+                                self.styles[match_style[2]] = match_style[5]
+                                continue
+                    break
+                elif match_style[2] in self.style_types:
+                    if self.style_types[match_style[2]].search(match_style[5]):
+                        styles[match_style[2]] = match_style[5]
+                    else:
+                        break
             else:
                 matched = False
-                for style_info in cls.style_types:
-                    match = style_info[0].search(match_style[1])
+                for style_info in self.special_style_types:
+                    match = style_info[0].search(match_style[2])
                     if match:
                         for k in range(1, len(style_info)):
                             if isinstance(style_info[k], str):
@@ -923,9 +957,7 @@ class Table(MarkedText):
                         break
                         
                 if not matched:
-                    styles[match_style[1]] = None
-                
-            i += match_style.end()
+                    break
         
         for k in styles.keys():
             if len(k) >= 5:
@@ -1023,7 +1055,7 @@ class Table(MarkedText):
                     new_row = True
                 continue
                 
-            styles, i = cls.parse_style(content, i)
+            styles, i = inst.parse_style(content, i)
             
             align_right = False
             while i < len(content):
@@ -1053,21 +1085,6 @@ class Table(MarkedText):
                             styles['align'] = 'right'
                         elif align_left:
                             styles['align'] = 'left'
-                
-                # global styles
-                tablestyles = []
-                
-                if first:
-                    inst.style_order = [i for i in styles.keys()]
-                
-                for type, style in styles.items():
-                    match_tablestyle = re.match(r'table ?(.*)', type)
-                    if match_tablestyle:
-                        tablestyles.append((match_tablestyle, style))
-                
-                for ts in tablestyles:
-                    styles.pop(ts[0][0])
-                    inst.styles[ts[0][1]] = ts[1]
             
             if new_row:
                 if not cell:
@@ -1134,6 +1151,11 @@ class Table(MarkedText):
             
             first = False
             colspan = 1
+        
+        for k in inst.styles.keys():
+            if len(k) >= 5:
+                if k[-5:] == 'color':
+                    inst.styles[k] = Color.parse(inst.styles[k])
             
         return inst, i
     
