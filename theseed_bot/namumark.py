@@ -927,8 +927,6 @@ class Table(MarkedText):
             match_style = self.re_tablestyle.match(content[i:])
             if not match_style:
                 break
-                
-            i += match_style.end()
             
             if match_style[3]:
                 if match_style[1]:
@@ -936,6 +934,8 @@ class Table(MarkedText):
                         if self.global_style_types[match_style[2]].search(match_style[5]):
                             if match_style[2] not in self.styles:
                                 self.styles[match_style[2]] = match_style[5]
+                
+                                i += match_style.end()
                                 continue
                     break
                 elif match_style[2] in self.style_types:
@@ -958,6 +958,8 @@ class Table(MarkedText):
                         
                 if not matched:
                     break
+                
+            i += match_style.end()
         
         for k in styles.keys():
             if len(k) >= 5:
