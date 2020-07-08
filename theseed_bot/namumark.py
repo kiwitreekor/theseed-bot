@@ -364,7 +364,10 @@ class MarkedText():
                 idx = self.parent.content.index(self)
                 del self.parent.content[idx]
             elif self in self.parent.content:
-                return self.parent.content.pop(self.parent.content.index(self))
+                if isinstance(self.parent, TableCell):
+                    return None
+                else:
+                    return self.parent.content.pop(self.parent.content.index(self))
         else:
             raise TypeError()
 
