@@ -174,10 +174,17 @@ class TheSeed():
         self.save_config()
         
     # helper functions
-    def url(self, url_, parameter = {}):
+    def url(self, url_, parameter = None):
+        if parameter == None:
+            parameter = {}
+            
         return URL(self.host, '/', url_, parameter)
     
-    def document_url(self, title, _type = '', parameter = {}):
+    def document_url(self, title, _type = '', parameter = None):
+        if parameter == None:
+            parameter = {}
+            
+        parameter['noredirect'] = 1
         return self.url(_type + '/' + urllib.parse.quote(title, encoding='UTF-8'), parameter)
     
     def set_wait(self, _type):
