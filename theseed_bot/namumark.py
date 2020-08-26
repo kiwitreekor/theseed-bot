@@ -1,4 +1,4 @@
-import re, urllib.parse, json, os.path, time, logging, io, copy, colorsys, webcolors
+import re, urllib.parse, json, os.path, time, logging, io, copy, colorsys, webcolors, math
 from bs4 import BeautifulSoup
 
 # namumark parser
@@ -684,6 +684,27 @@ class LinkedText(MarkedText):
         offset += match_link.end()
         
         return offset
+    
+    def generate_dark(self, override = False):
+        if len(self.content) == 1:
+            if isinstance(self.content[0], ColoredText):
+                return
+        
+        bg_color = self.get_bgcolor()
+
+        bg_col = webcolors.html5_parse_legacy_color(bg_color.dark if bg_color.dark else bg_color.light)
+        link_col = webcolors.html5_parse_legacy_color(Namumark.default_link_color.dark)
+        color_distance = math.sqrt((bg_col.red - link_col.red) ** 2 + (bg_col.green - link_col.green) ** 2 + (bg_col.blue - link_col.blue) ** 2)
+
+        if color_distance < 30:
+            if self.content:
+                colored_text = ColoredText(self.content)
+            else:
+                colored_text = ColoredText([PlainText(self.link)])
+            
+            colored_text.color = Color(Namumark.default_link_color.light)
+            
+            self.content = [colored_text]
     
     def filter(self, **kwargs):
         result = super().filter(**kwargs)
@@ -1771,6 +1792,7 @@ class Namumark():
     ]
     
     default_text_color = Color('#373a3c', '#dddddd')
+    default_link_color = Color('#0275d8', '#eca019')
     default_bgcolor = Color('#ffffff', '#1f2023')
 
     def __init__(self, document, process_categories = True):
