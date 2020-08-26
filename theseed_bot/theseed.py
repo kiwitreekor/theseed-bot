@@ -603,9 +603,13 @@ class TheSeed():
         return text
     
     def random(self):
+        loaded = self.is_loaded
         self.get(self.url('random'))
 
-        return self.state['page']['data']
+        if loaded:
+            return urllib.parse.unquote(self.state['page']['url'][3:])
+        else:
+            return self.state['page']['title']
 
     def history(self, title, from_ = None, until = None, page = -1):
         '''
