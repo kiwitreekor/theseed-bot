@@ -692,7 +692,7 @@ class LinkedText(MarkedText):
         
         bgcolor = self.get_bgcolor()
 
-        if Color.get_difference(bgcolor.get_dark(), Namumark.default_link_color.dark) < 120:
+        if Color.get_difference(bgcolor.get_dark(), Namumark.default_link_color.dark) < 150:
             if self.content:
                 colored_text = ColoredText(self.content)
             else:
@@ -1572,7 +1572,7 @@ class Table(MarkedText):
                             if isinstance(style, Color):
                                 if style == Namumark.default_text_color:
                                     bgcolor = bgcolor if bgcolor else Namumark.default_table_bgcolor
-                                    if Color.get_difference(bgcolor.get_dark(), Namumark.default_text_color.dark) < 120:
+                                    if abs(Color.get_lightness(bgcolor.get_dark()) - Color.get_lightness(Namumark.default_text_color.dark)) < 50:
                                         cell.styles[type] = Color(Namumark.default_text_color.light)
                                 else:
                                     style.generate_dark(bgcolor = bgcolor, foreground = True, override = override)
@@ -1688,13 +1688,18 @@ class Color():
     
     @staticmethod
     def get_lightness(color):
+        if isinstance(color, str):
+            color = webcolors.html5_parse_legacy_color(color)
+
         return 0.2126 * color.red / 255 + 0.7152 * color.green / 255 + 0.0722 * color.blue / 255
     
     @staticmethod
     def get_difference(color_1, color_2):
         col_1 = webcolors.html5_parse_legacy_color(color_1)
         col_2 = webcolors.html5_parse_legacy_color(color_2)
-        color_distance = math.sqrt((col_1.red - col_2.red) ** 2 + (col_1.green - col_2.green) ** 2 + (col_1.blue - col_2.blue) ** 2)
+
+        red_avg = (col_1.red + col_2.red) / 2
+        color_distance = math.sqrt(((2 + red_avg / 256) * (col_1.red - col_2.red) ** 2 + 4 * (col_1.green - col_2.green) ** 2 + (2 + (255 - red_avg) / 256) * (col_1.blue - col_2.blue) ** 2) / 3)
 
         return color_distance
     
