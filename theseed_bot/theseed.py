@@ -602,6 +602,11 @@ class TheSeed():
 
         return text
     
+    def random(self):
+        self.get(self.url('random'))
+
+        return self.state['page']['data']
+
     def history(self, title, from_ = None, until = None, page = -1):
         '''
         "page"
