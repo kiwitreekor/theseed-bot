@@ -1572,7 +1572,7 @@ class Table(MarkedText):
                             if isinstance(style, Color):
                                 if style == Namumark.default_text_color:
                                     bgcolor = bgcolor if bgcolor else Namumark.default_table_bgcolor
-                                    if abs(Color.get_lightness(bgcolor.get_dark()) - Color.get_lightness(Namumark.default_text_color.dark)) < 50:
+                                    if abs(Color.get_lightness(bgcolor.get_dark()) - Color.get_lightness(Namumark.default_text_color.dark)) < 0.2:
                                         cell.styles[type] = Color(Namumark.default_text_color.light)
                                 else:
                                     style.generate_dark(bgcolor = bgcolor, foreground = True, override = override)
