@@ -690,13 +690,9 @@ class LinkedText(MarkedText):
             if isinstance(self.content[0], ColoredText):
                 return
         
-        bg_color = self.get_bgcolor()
+        bgcolor = self.get_bgcolor()
 
-        bg_col = webcolors.html5_parse_legacy_color(bg_color.dark if bg_color.dark else bg_color.light)
-        link_col = webcolors.html5_parse_legacy_color(Namumark.default_link_color.dark)
-        color_distance = math.sqrt((bg_col.red - link_col.red) ** 2 + (bg_col.green - link_col.green) ** 2 + (bg_col.blue - link_col.blue) ** 2)
-
-        if color_distance < 30:
+        if Color.get_difference(bgcolor.get_dark(), Namumark.default_link_color.dark) < 120:
             if self.content:
                 colored_text = ColoredText(self.content)
             else:
@@ -1355,7 +1351,7 @@ class Table(MarkedText):
                                 break
                         
                         if not already_colored:
-                            cell.styles[type] = copy.deepcopy(Namumark.default_text_color)
+                            cell.styles[type] = Namumark.default_text_color
                 
             rowcolor = None
     
@@ -1574,8 +1570,12 @@ class Table(MarkedText):
                                 bgcolor = cell.styles['bgcolor']
                             
                             if isinstance(style, Color):
-                                tmp_override = style.compare(Namumark.default_text_color) or override
-                                style.generate_dark(bgcolor = bgcolor, foreground = True, override = tmp_override)
+                                if style == Namumark.default_text_color:
+                                    bgcolor = bgcolor if bgcolor else Namumark.default_table_bgcolor
+                                    if Color.get_difference(bgcolor.get_dark(), Namumark.default_text_color.dark) < 120:
+                                        cell.styles[type] = Color(Namumark.default_text_color.light)
+                                else:
+                                    style.generate_dark(bgcolor = bgcolor, foreground = True, override = override)
                     background = False
                     
     
@@ -1690,6 +1690,17 @@ class Color():
     def get_lightness(color):
         return 0.2126 * color.red / 255 + 0.7152 * color.green / 255 + 0.0722 * color.blue / 255
     
+    @staticmethod
+    def get_difference(color_1, color_2):
+        col_1 = webcolors.html5_parse_legacy_color(color_1)
+        col_2 = webcolors.html5_parse_legacy_color(color_2)
+        color_distance = math.sqrt((col_1.red - col_2.red) ** 2 + (col_1.green - col_2.green) ** 2 + (col_1.blue - col_2.blue) ** 2)
+
+        return color_distance
+    
+    def get_dark(self):
+        return self.dark if self.dark else self.light
+    
     def generate_dark(self, bgcolor = None, foreground = False, override = False):
         if self.light and (not self.dark or override):
             make = ''
@@ -1708,7 +1719,7 @@ class Color():
             color_l = self.get_lightness(color_rgb)
                 
             if foreground:
-                bg = bgcolor.dark if bgcolor.dark else bgcolor.light
+                bg = bgcolor.get_dark()
                 
                 bgcol = webcolors.html5_parse_legacy_color(bg)
                 bg_l = self.get_lightness(bgcol)
@@ -1721,7 +1732,7 @@ class Color():
             else:
                 if color_hsv[1] < 0.35 and color_l >= 0.6:
                     make = 'dark'
-            
+
             if make == 'dark':
                 if color_l > 0.4:
                     dark_hls = (color_hls[0], max(1.0 - color_hls[1], 0.1), color_hls[2])
@@ -1793,6 +1804,7 @@ class Namumark():
     
     default_text_color = Color('#373a3c', '#dddddd')
     default_link_color = Color('#0275d8', '#eca019')
+    default_table_bgcolor = Color('#f5f5f5', '#2d2f34')
     default_bgcolor = Color('#ffffff', '#1f2023')
 
     def __init__(self, document, process_categories = True):
