@@ -686,6 +686,10 @@ class LinkedText(MarkedText):
         return offset
     
     def generate_dark(self, override = False):
+        if len(self.link) >= 3:
+            if self.link[:3] == '파일:':
+                return
+        
         if len(self.content) == 1:
             if isinstance(self.content[0], ColoredText):
                 return
