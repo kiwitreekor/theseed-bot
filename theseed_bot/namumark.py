@@ -882,7 +882,7 @@ class Table(MarkedText):
     name = 'Table'
 
     re_color = re.compile(r'((?:(?:^|,)([A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2})$')
-    re_length = re.compile(r'^[0-9]+(%|px)?$')
+    re_length = re.compile(r'^[0-9]+(\.[0-9]+)?(%|px)?$')
 
     re_tablestyle = re.compile(r'<(table ?)?(.*?)(=(["\']?)(.*?)\4)?>')
     
