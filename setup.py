@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='theseed-bot',
-    version='2.5.9',
+    version='2.5.10',
 	description='theseed engine api',
 	url='https://github.com/kiwitreekor/theseed-bot',
 	author='kiwitree',
