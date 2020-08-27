@@ -1842,7 +1842,7 @@ class Namumark():
         
         for l in links:
             if rx_category.match(l.link)[1] not in categories:
-                categories.append(rx_category.match(l.link)[1])
+                categories.append((rx_category.match(l.link)[1], l.anchor))
         
         for l in links:
             l.extract()
@@ -1851,13 +1851,37 @@ class Namumark():
         
         return categories
     
-    def add_category(self, category):
+    def get_category_index(self, category):
+        for i in range(len(self.categories)):
+            if self.categories[i][0] == category:
+                return i
+        return None
+    
+    def is_in_category(self, category):
+        for c, anchor in self.categories:
+            if c == category:
+                return True
+        
+        return False
+    
+    def add_category(self, category, blur = False):
         if not category in self.categories:
-            self.categories.append(category)
+            self.categories.append((category, 'blur' if blur else None))
+    
+    def blur_category(self, category):
+        i = self.get_category_index(category)
+        if i != None:
+            self.categories[i] = (self.categories[i][0], 'blur')
+    
+    def unblur_category(self, category):
+        i = self.get_category_index(category)
+        if i != None:
+            self.categories[i] = (self.categories[i][0], None)
     
     def remove_category(self, category):
-        if category in self.categories:
-            self.categories.pop(self.categories.index(category))
+        i = self.get_category_index(category)
+        if i != None:
+            self.categories.pop(i)
     
     def render(self):
         category_paragraph = MarkedText()
@@ -1867,7 +1891,7 @@ class Namumark():
         if self.categories:
             for c in self.categories:
                 l = LinkedText()
-                l.link = '분류:{}'.format(c)
+                l.link = '분류:{}{}'.format(c[0], '#' + c[1] if c[1] else '')
                 
                 category_paragraph.content.append(l)
             
