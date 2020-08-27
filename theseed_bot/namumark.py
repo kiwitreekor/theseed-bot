@@ -1281,6 +1281,8 @@ class Table(MarkedText):
                 
                 if not content:
                     content = ' '
+                elif content[0] == '\n' and not style_str:
+                    content = '<(>' + content
                 
                 if content[0] == ' ':
                     front_align_str = ''
