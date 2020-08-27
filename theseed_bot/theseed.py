@@ -610,6 +610,25 @@ class TheSeed():
             return urllib.parse.unquote(self.state['page']['url'][3:])
         else:
             return self.state['page']['title']
+    
+    def randompage(self, namespace = Namespaces.document):
+        '''
+        "page"
+            "data"
+                "namespaces"
+                "selectedNamespace"
+                "randompage" []
+                    "namespace"
+                    "title"
+        '''
+        self.get(self.url('RandomPage', {'namespace':  namespace}))
+
+        documents = []
+
+        for doc in self.state['page']['data']['randompage']:
+            documents.append(Document(doc))
+        
+        return documents
 
     def history(self, title, from_ = None, until = None, page = -1):
         '''
