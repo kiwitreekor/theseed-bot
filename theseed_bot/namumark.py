@@ -621,9 +621,12 @@ class ColoredText(MarkedText):
     name = 'ColoredText'
     
     def preprocess(self, content, offset):
-        if not re.match(r'((?:(?:^|,)([A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2}) ', content[offset:]):
+        if not re.match(r'((?:(?:^|(,))((?(2)|#)[A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2}) ', content[offset:]):
+            return None
+        
+        if not re.match(r'#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})', content[offset:]):
             offset += 1
-            
+        
         self.color, offset = Color.parse(content, offset)
         if not self.color:
             return None
@@ -689,7 +692,7 @@ class LinkedText(MarkedText):
         if len(self.link) >= 3:
             if self.link[:3] == '파일:':
                 return
-        
+    
         if len(self.content) == 1:
             if isinstance(self.content[0], ColoredText):
                 return
