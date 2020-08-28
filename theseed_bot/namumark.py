@@ -1037,6 +1037,7 @@ class Table(MarkedText):
                 old_i = i
                 i += 1
                 
+                # check comment
                 if content[i:i+2] == '##':
                     i += 2
                     comment_start = i
@@ -1048,6 +1049,7 @@ class Table(MarkedText):
                         i += 1
                     continue
                 
+                # check indentation
                 indent_check, i = cls.check_indent(content, i, check = indent)
                 
                 if indent_check:
@@ -1057,6 +1059,7 @@ class Table(MarkedText):
                         i = old_i
                         break
                 else:
+                    # different indentaion. exit
                     i = old_i
                     break
             
@@ -1068,7 +1071,6 @@ class Table(MarkedText):
             # process old colspan
             if content[i:i+2] == '||':
                 colspan += 1
-                end = False
                 
                 i += 2
                 
@@ -1080,9 +1082,11 @@ class Table(MarkedText):
                     colspan = 1
                     new_row = True
                 continue
-                
+            
+            # parse styles
             styles, i = inst.parse_style(content, i)
             
+            # check align by space
             align_right = False
             while i < len(content):
                 if content[i] == ' ':
@@ -1091,6 +1095,7 @@ class Table(MarkedText):
                 else:
                     break
             
+            # parse cell content
             cell, i = MarkedText.parse_line(content, i, close = '||', multiline = True, start_newline = False)
             
             if cell:
@@ -1113,12 +1118,17 @@ class Table(MarkedText):
                             styles['align'] = 'left'
             
             if new_row:
+                # check if it is complete table
                 if not cell:
                     break
+
+                # start new row
                 col_num = 0
+
                 inst.content.append([])
             else:
                 if not cell:
+                    # broken table
                     return None, offset
                 
             # process rowspan
@@ -1137,22 +1147,21 @@ class Table(MarkedText):
             else:
                 extend_col = False
                 
-                if col_num + colspan >= len(colinfo):
-                    if not special_new_row:
-                        extend_col = True
-                    else:
-                        col_num = 0
-                        inst.content.append([])
-                
+                # check rowspan
                 for col_num in range(col_num, len(colinfo)):
-                    if colinfo[col_num] == len(inst.content) - 1:
+                    if colinfo[col_num] < len(inst.content):
                         break
+                
+                if col_num + colspan >= len(colinfo):
+                    extend_col = True
                         
                 current_col = col_num
-                
+
                 for col_num in range(col_num, min(col_num + colspan, len(colinfo))):
                     colinfo[col_num] += rowspan
                 
+                col_num += 1
+
                 if extend_col:
                     colinfo.extend([rowspan for k in range(col_num + colspan - len(colinfo))])
             
@@ -1167,11 +1176,6 @@ class Table(MarkedText):
             if content[i] == '\n':
                 colspan = 0
                 new_row = True
-                
-                if col_num < len(colinfo):
-                    if colinfo[col_num] - colinfo[col_num - 1] > 1 and colinfo[col_num] < colinfo[col_num - 1]:
-                        special_new_row = True
-                        new_row = False
             else:
                 new_row = False
             
