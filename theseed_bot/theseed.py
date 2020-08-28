@@ -292,9 +292,9 @@ class TheSeed():
         rx_js_rotate = re.compile(rf'\({str_var},(0x[0-9A-Fa-f]+)\)')
         str_rotate = int(rx_js_rotate.search(script_response.text)[1], 16)
         
-        decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')
-        for i in range(256):
-            self.decode_array.append(int(decode_array_match[i], 16))
+        # decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')=
+        # for i in range(256):
+        #     self.decode_array.append(int(decode_array_match[i], 16))
         
         self.strings = self.strings[str_rotate:] + self.strings[:str_rotate]
         
@@ -425,8 +425,9 @@ class TheSeed():
             if content_type == 'application/json':
                 self.state['page'].update(json.loads(response.text))
             elif content_type == 'application/octet-stream':
-                data = bytearray(response.content)
-                self.decode_internal(data)
+                # data = bytearray(response.content)
+                # self.decode_internal(data)
+                data = response.text
 
                 self.state['page'].update(json.loads(self.inflate(data)))
             else:
@@ -941,19 +942,24 @@ class TheSeed():
             
             # pin
             if self.state['page']['viewName'] == 'login_pin':
-                while True:
-                    pin = input('{}로 도착한 PIN을 입력하세요: '.format(self.state['page']['data']['email']))
-                    
-                    if not pin:
-                        return
-                    
-                    try:
-                        response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
-                    except Error as err:
-                        continue
-                    
-                    if self.state['page']['status'] == 302:
-                        break
+                if self.state['page']['data']['mode'] == 'pin':
+                    while True:
+                        pin = input('{}로 도착한 PIN을 입력하세요: '.format(self.state['page']['data']['email']))
+                        
+                        if not pin:
+                            return
+                        
+                        try:
+                            response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
+                        except Error as err:
+                            continue
+                        
+                        if self.state['page']['status'] == 302:
+                            break
+                elif self.state['page']['data']['mode'] == 'disable':
+                    response = self.post(self.url('member/login/pin'), {'pin': '123456', 'trust': 'Y'})
+                else:
+                    raise NotImplementedError('Unidentified page')
                         
             self.logger.info('Success (login, {})'.format(id))
             
