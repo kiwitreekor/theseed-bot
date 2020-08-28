@@ -409,10 +409,17 @@ class TheSeed():
                 print(response.text)
                 with open('response.txt', mode='w', encoding='utf-8') as f:
                     json.dump(dict(response.headers), f, ensure_ascii=False, sort_keys=True, indent=4)
-                raise ValueError('invalid response received')
+                
+                if loop_count < self.max_loop_count:
+                    continue
+                else:
+                    raise ValueError('invalid response received')
             
             if response.headers['x-ruby'] != 'hit' or (response.status_code >= 300 or response.status_code < 200):
-                raise ValueError('invalid response received')
+                if loop_count < self.max_loop_count:
+                    continue
+                else:
+                    raise ValueError('invalid response received')
             
             content_type = response.headers['content-type'].split(';')[0].strip().casefold()
             if content_type == 'application/json':
