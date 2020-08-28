@@ -1059,7 +1059,7 @@ class Table(MarkedText):
                         i = old_i
                         break
                 else:
-                    # different indentaion. exit
+                    # different indentation. exit
                     i = old_i
                     break
             
