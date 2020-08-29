@@ -219,7 +219,7 @@ class MarkedText():
         return Namumark.default_bgcolor
     
     def __repr__(self):
-        return '{}({})'.format(self.name, repr(self.content))
+        return '{}({}, {})'.format(self.name, self.indent, repr(self.content))
     
     @classmethod
     def parse(cls, content, offset = -1, parent = None, close = None):
@@ -270,33 +270,44 @@ class MarkedText():
         closed = False
         linestart = offset == 0 or start_newline
         
+        indent, i = cls.check_indent(content, i)
+        
         if cls.open:
             assert content[offset:offset+len(cls.open)] == cls.open
         
-        indent, i = cls.check_indent(content, i)
-        
-        inst = cls([], indent)
+        line_cls = cls
+
+        if indent > 0:
+            for l in Namumark.singlelines:
+                if content[i:i+len(l.open)] == l.open:
+                    line_cls = l
+                
+        inst = line_cls([], indent)
         inst.parent = parent
         
-        if cls.open:
-            i += len(cls.open)
+        if line_cls.open:
+            i += len(line_cls.open)
         i = inst.preprocess(content, i)
         
         if i == None:
             return None, offset
 
         while i < len(content):
+            found = False
+
             if not multiline and content[i] == '\n':
                 i += 1
                 break
             
-            found = False
-            
-            if not found and close_block and content[i:i+len(close_block)] == close_block:
-                closed = True
-                i += len(close_block)
-                i = inst.postprocess(content, i)
-                break
+            if close_block:
+                if content[i:i+len(close_block)] == close_block:
+                    closed = True
+
+                    if close_block != '\n':
+                        i += len(close_block)
+
+                    i = inst.postprocess(content, i)
+                    break
             
             if not found:
                 if linestart and content[i] == '|':
@@ -401,6 +412,101 @@ class PlainText():
         assert isinstance(char, str)
         
         self.content += char
+
+class UnorderedList(MarkedText):
+    name = 'UnorderedList'
+
+    open = "*"
+
+    def preprocess(self, content, offset):
+        i = offset
+
+        while i < len(content):
+            if content[i] != ' ':
+                break
+            else:
+                i += 1
+        
+        return i
+
+    def __str__(self):
+        result = ''
+        for i in range(self.indent):
+            result += ' '
+        
+        result += self.open + ' '
+        
+        for c in self.content:
+            result += str(c)
+            
+        return result
+
+class OrderedList(MarkedText):
+    name = 'OrderedList'
+
+    def preprocess(self, content, offset):
+        self.order = None
+
+        i = offset
+
+        order_match = re.match(r'#([0-9]+)', content[offset:])
+        if order_match:
+            self.order = int(order_match[1])
+            i += order_match.end()
+
+        while i < len(content):
+            if content[i] != ' ':
+                break
+            else:
+                i += 1
+        
+        return i
+
+    def __str__(self):
+        result = ''
+        for i in range(self.indent):
+            result += ' '
+        
+        result += self.open
+
+        if self.order != None:
+            result += '#{}'.format(self.order)
+        
+        result += ' '
+        
+        for c in self.content:
+            result += str(c)
+            
+        return result
+    
+    def __repr__(self):
+        return '{}({}, {}{})'.format(self.name, self.indent, '{}, '.format(self.order) if self.order else '', repr(self.content))
+
+class DecimalList(OrderedList):
+    name = 'DecimalList'
+
+    open = "1."
+
+class UpperAlphaList(OrderedList):
+    name = 'UpperAlphaList'
+
+    open = "A."
+
+class AlphaList(OrderedList):
+    name = 'UpperAlphaList'
+
+    open = "a."
+
+class UpperRomanList(OrderedList):
+    name = 'UpperRomanList'
+
+    open = "I."
+
+class RomanList(OrderedList):
+    name = 'RomanList'
+
+    open = "i."
+
 
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
@@ -1822,6 +1928,10 @@ class Namumark():
         LinkedText, BoldText, ItalicText, StrikedText, StrikedText2, UnderlinedText, UpperText, LowerText,
         NowikiText, BoxedText,
         Macro
+    ]
+
+    singlelines = [
+        UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList
     ]
     
     default_text_color = Color('#373a3c', '#dddddd')
