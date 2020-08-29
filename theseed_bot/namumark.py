@@ -518,6 +518,25 @@ class Comment(MarkedText):
     allowed_indent = (0, 0)
     open = '##'
 
+    def preprocess(self, content, offset):
+        match = re.match(r'(.*)(?:\n|$)', content[offset:])
+        assert match
+
+        self.comment = match[1]
+        return offset + match.end() - 1
+    
+    def __str__(self):
+        return self.open + self.comment
+    
+    def __repr__(self):
+        return '{}({})'.format(self.name, self.comment)
+
+class QuotedText(MarkedText):
+    name = 'QuotedText'
+
+    allowed_indent = (-1, -1)
+    open = '>'
+
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
     close = "}}}"
@@ -1952,7 +1971,7 @@ class Namumark():
 
     singlelines = [
         UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList,
-        Comment
+        QuotedText, Comment
     ]
     
     default_text_color = Color('#373a3c', '#dddddd')
