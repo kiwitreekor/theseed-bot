@@ -281,6 +281,7 @@ class MarkedText():
             for l in Namumark.singlelines:
                 if content[i:i+len(l.open)] == l.open:
                     line_cls = l
+                    break
                 
         inst = line_cls([], indent)
         inst.parent = parent
