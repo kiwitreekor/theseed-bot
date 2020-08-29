@@ -277,8 +277,8 @@ class MarkedText():
         
         line_cls = cls
 
-        if indent > 0:
-            for l in Namumark.singlelines:
+        for l in Namumark.singlelines:
+            if indent >= l.allowed_indent[0] and (indent <= l.allowed_indent[1] or l.allowed_indent[1] < 0):
                 if content[i:i+len(l.open)] == l.open:
                     line_cls = l
                     break
@@ -417,6 +417,8 @@ class PlainText():
 class UnorderedList(MarkedText):
     name = 'UnorderedList'
 
+    allowed_indent = (1, -1)
+
     open = "*"
 
     def preprocess(self, content, offset):
@@ -444,6 +446,8 @@ class UnorderedList(MarkedText):
 
 class OrderedList(MarkedText):
     name = 'OrderedList'
+
+    allowed_indent = (1, -1)
 
     def preprocess(self, content, offset):
         self.order = None
@@ -508,6 +512,11 @@ class RomanList(OrderedList):
 
     open = "i."
 
+class Comment(MarkedText):
+    name = 'Comment'
+
+    allowed_indent = (0, 0)
+    open = '##'
 
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
@@ -1143,16 +1152,9 @@ class Table(MarkedText):
                 i += 1
                 
                 # check comment
-                if content[i:i+2] == '##':
-                    i += 2
-                    comment_start = i
-                    while i < len(content):
-                        if content[i] == '\n':
-                            comment = content[comment_start:i]
-                            inst.comments.append((comment, len(inst.content)))
-                            break
-                        i += 1
-                    continue
+                if content[i:i+2] == Comment.open:
+                    comment, i = Comment.parse_line(content, i)
+                    inst.comments.append((comment, len(inst.content)))
                 
                 # check indentation
                 indent_check, i = cls.check_indent(content, i, check = indent)
@@ -1306,7 +1308,7 @@ class Table(MarkedText):
         for row in self.content:
             for comment in self.comments:
                 if row_num == comment[1]:
-                    result += '\n##{}'.format(comment[0])
+                    result += '\n{}'.format(comment[0])
             
             if not first:
                 result += '\n'
@@ -1405,7 +1407,7 @@ class Table(MarkedText):
         
         for comment in self.comments:
             if row_num <= comment[1]:
-                result += '\n##{}'.format(comment[0])
+                result += '\n{}'.format(comment[0])
         
         return result
     
@@ -1928,8 +1930,12 @@ class Namumark():
         Macro
     ]
 
-    singlelines = [
+    lists = [
         UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList
+    ]
+
+    singlelines = [
+        Comment
     ]
     
     default_text_color = Color('#373a3c', '#dddddd')
