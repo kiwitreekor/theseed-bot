@@ -1104,8 +1104,6 @@ class Table(MarkedText):
         i = offset
         
         new_row = False
-        special_new_row = False
-        first = True
         
         styles = {}
         
@@ -1286,7 +1284,6 @@ class Table(MarkedText):
             else:
                 new_row = False
             
-            first = False
             colspan = 1
         
         for k in inst.styles.keys():
