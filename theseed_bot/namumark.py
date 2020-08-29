@@ -1930,11 +1930,8 @@ class Namumark():
         Macro
     ]
 
-    lists = [
-        UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList
-    ]
-
     singlelines = [
+        UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList,
         Comment
     ]
     
