@@ -261,10 +261,10 @@ class MarkedText():
         return indent, i
     
     @classmethod
-    def parse_line(cls, content, offset = 0, parent = None, multiline = None, start_newline = None, close = None, indent = 0):
+    def parse_line(cls, content, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, indent = 0):
         i = offset
         close_block = cls.close if not close else close
-        multiline = cls.multiline if multiline == None else multiline
+        multiline = cls.multiline
         start_newline = cls.start_newline if start_newline == None else start_newline
         
         closed = False
@@ -341,7 +341,7 @@ class MarkedText():
                 inst.content.append(PlainText(content[i]))
                 i += 1
         
-        if closed or not close_block:
+        if closed or not close_block or allow_newline:
             return inst, i
         else:
             return None, offset
@@ -1203,18 +1203,30 @@ class Table(MarkedText):
                     break
             
             # parse cell content
-            cell, i = MarkedText.parse_line(content, i, close = '||', multiline = True, start_newline = False)
+            cell = []
+            old_i = i
+
+            while i < len(content):
+                c, i = MarkedText.parse_line(content, i, allow_newline = True, close = '||', start_newline = content[i-1] == '\n')
+                cell.append(c)
+
+                if not c:
+                    cell = None
+                    break
+
+                if content[i-2:i] == '||':
+                    break
             
-            if cell:
+            if cell != None:
                 if 'colspan' not in styles and colspan > 1:
                     styles['colspan'] = str(colspan)
                 
                 # check align by space
-                if len(str(cell)) > 1:
-                    align_left = str(cell)[-1] == ' '
+                if i - old_i > 1:
+                    align_left = content[i-3] == ' '
                     
                     if align_left:
-                        cell, j = MarkedText.parse_line(str(cell).rstrip(), multiline = True, start_newline = False)
+                        cell[-1], j = MarkedText.parse_line(str(cell[-1]).rstrip(), start_newline = False)
                     
                     if 'align' not in styles:
                         if align_right and align_left:
@@ -1226,7 +1238,7 @@ class Table(MarkedText):
             
             if new_row:
                 # check if it is complete table
-                if not cell:
+                if cell == None:
                     break
 
                 # start new row
@@ -1234,7 +1246,7 @@ class Table(MarkedText):
 
                 inst.content.append([])
             else:
-                if not cell:
+                if cell == None:
                     # broken table
                     return None, offset
                 
@@ -1273,7 +1285,8 @@ class Table(MarkedText):
                     colinfo.extend([rowspan for k in range(col_num + colspan - len(colinfo))])
             
             cell_inst = TableCell(inst, styles, cell, current_col)
-            cell_inst.content.parent = cell_inst
+            for c in cell:
+                c.parent = cell_inst
             
             inst.content[-1].append(cell_inst)
             
@@ -1387,11 +1400,14 @@ class Table(MarkedText):
                             back_align_str += ' '
                         break
                 
-                content = str(cell.content)
+                content = ''
+                for c in cell.content:
+                    content += str(c)
                 
                 if not content:
                     content = ' '
                 elif content[0] == '\n' and not style_str:
+                    # exceptional case
                     style_str = '<(>'
                 
                 if content[0] == ' ':
@@ -1454,24 +1470,28 @@ class Table(MarkedText):
                     elif tablecolor:
                         cell.styles[type] = tablecolor
                     elif type == 'color':
-                        already_colored = False
+                        already_colored = True
                         
-                        content = cell.content.content
-                        
-                        if not str(content).strip():
-                            already_colored = True
-                            
-                        while content:
-                            if len(content) == 1:
-                                if isinstance(content[0], ColoredText):
-                                    already_colored = True
-                                    break
-                                elif isinstance(content[0], ItalicText) or isinstance(content[0], BoldText):
-                                    content = content[0].content
+                        for m in cell.content:
+                            content = m.content
+                            line_already_colored = False
+
+                            if not str(content).strip():
+                                line_already_colored = True
+                                
+                            while content:
+                                if len(content) == 1:
+                                    if isinstance(content[0], ColoredText):
+                                        line_already_colored = True
+                                        break
+                                    elif isinstance(content[0], ItalicText) or isinstance(content[0], BoldText):
+                                        content = content[0].content
+                                    else:
+                                        break
                                 else:
                                     break
-                            else:
-                                break
+                            
+                            already_colored &= line_already_colored
                         
                         if not already_colored:
                             cell.styles[type] = Namumark.default_text_color
