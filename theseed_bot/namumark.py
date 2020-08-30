@@ -292,8 +292,8 @@ class MarkedText():
 
         pre_result = inst.preprocess(content, i)
         
-        if pre_result == None and cls == MarkedText:
-            if line_cls in Namumark.singlelines:
+        if pre_result == None:
+            if line_cls in Namumark.singlelines and cls == MarkedText:
                 del inst
 
                 inst = cls([], indent)
