@@ -568,14 +568,17 @@ class QuotedText(MarkedText):
     
     def __str__(self):
         result = ''
+        indent = ''
+
+        for i in range(self.indent):
+            indent += ' '
+        
         for c in self.content:
-            for i in range(self.indent):
-                result += ' '
 
             result += str(c) + '\n'
         
         result = result[:-1]
-        return re.sub(r'^', '>', result, flags = re.MULTILINE)
+        return re.sub(r'^', indent + '>', result, flags = re.MULTILINE)
 
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
