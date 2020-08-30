@@ -277,21 +277,33 @@ class MarkedText():
         
         line_cls = cls
 
-        for l in Namumark.singlelines:
-            if indent >= l.allowed_indent[0] and (indent <= l.allowed_indent[1] or l.allowed_indent[1] < 0):
-                if content[i:i+len(l.open)] == l.open:
-                    line_cls = l
-                    break
+        if cls == MarkedText:
+            for l in Namumark.singlelines:
+                if indent >= l.allowed_indent[0] and (indent <= l.allowed_indent[1] or l.allowed_indent[1] < 0):
+                    if content[i:i+len(l.open)] == l.open:
+                        line_cls = l
+                        break
                 
         inst = line_cls([], indent)
         inst.parent = parent
         
         if line_cls.open:
             i += len(line_cls.open)
-        i = inst.preprocess(content, i)
+
+        pre_result = inst.preprocess(content, i)
         
-        if i == None:
-            return None, offset
+        if pre_result == None and cls == MarkedText:
+            if line_cls in Namumark.singlelines:
+                del inst
+
+                inst = cls([], indent)
+                inst.parent = parent
+
+                i -= len(line_cls.open)
+            else:
+                return None, offset
+        else:
+            i = pre_result
 
         while i < len(content):
             found = False
@@ -308,6 +320,7 @@ class MarkedText():
                         i += len(close_block)
 
                     i = inst.postprocess(content, i)
+                    print(i)
                     break
             
             if not found:
@@ -579,6 +592,23 @@ class QuotedText(MarkedText):
         
         result = result[:-1]
         return re.sub(r'^', indent + '>', result, flags = re.MULTILINE)
+
+class HorizontalLine(MarkedText):
+    name = 'HorizontalLine'
+
+    allowed_indent = (-1, -1)
+    open = '----'
+
+    def preprocess(self, content, offset):
+        match = re.match(r'-{0,5}$', content[offset:], flags = re.MULTILINE)
+
+        if not match:
+            return None
+        
+        return offset + match.end()
+    
+    def __repr__(self):
+        return '{}({})'.format(self.name, self.indent)
 
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
@@ -2014,7 +2044,7 @@ class Namumark():
 
     singlelines = [
         UnorderedList, DecimalList, UpperAlphaList, AlphaList, UpperRomanList, RomanList,
-        QuotedText, Comment
+        QuotedText, HorizontalLine, Comment
     ]
     
     default_text_color = Color('#373a3c', '#dddddd')
