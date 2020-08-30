@@ -320,7 +320,6 @@ class MarkedText():
                         i += len(close_block)
 
                     i = inst.postprocess(content, i)
-                    print(i)
                     break
             
             if not found:
@@ -1494,7 +1493,10 @@ class Table(MarkedText):
                 
                 content = ''
                 for c in cell.content:
-                    content += str(c)
+                    content += str(c) + '\n'
+                
+                if len(content) > 0:
+                    content = content[:-1]
                 
                 if not content:
                     content = ' '
