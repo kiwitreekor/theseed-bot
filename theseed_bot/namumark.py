@@ -537,6 +537,39 @@ class QuotedText(MarkedText):
     allowed_indent = (-1, -1)
     open = '>'
 
+    def preprocess(self, content, offset):
+        i = offset
+
+        while i < len(content):
+            parsed_content, i = MarkedText.parse_line(content, i, parent = self)
+            self.content.append(parsed_content)
+            
+            if i >= len(content):
+                break
+            
+            old_i = i
+            indent_check, i = MarkedText.check_indent(content, i, check = self.indent)
+            if not indent_check:
+                i -= 1
+                break
+
+            if content[i:i+len(self.open)] != self.open:
+                i = old_i - 1
+                break
+            i += 1
+            
+        return i
+    
+    def __str__(self):
+        result = ''
+        for c in self.content:
+            for i in range(self.indent):
+                result += ' '
+
+            result += self.open + str(c) + '\n'
+        
+        return result[:-1]
+
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
     close = "}}}"
