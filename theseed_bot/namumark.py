@@ -539,10 +539,14 @@ class QuotedText(MarkedText):
 
     def preprocess(self, content, offset):
         i = offset
+        text = ''
 
         while i < len(content):
-            parsed_content, i = MarkedText.parse_line(content, i, parent = self)
-            self.content.append(parsed_content)
+            match = re.match(r'(.*)(\n|$)', content[i:])
+            
+            assert match
+            text += match[1] + '\n'
+            i += match.end()
             
             if i >= len(content):
                 break
@@ -556,8 +560,10 @@ class QuotedText(MarkedText):
             if content[i:i+len(self.open)] != self.open:
                 i = old_i - 1
                 break
-            i += 1
-            
+
+            i += len(self.open)
+        
+        self.content = MarkedText.parse(text, parent = self)
         return i
     
     def __str__(self):
@@ -566,9 +572,10 @@ class QuotedText(MarkedText):
             for i in range(self.indent):
                 result += ' '
 
-            result += self.open + str(c) + '\n'
+            result += str(c) + '\n'
         
-        return result[:-1]
+        result = result[:-1]
+        return re.sub(r'^', '>', result, flags = re.MULTILINE)
 
 class WikiDiv(MarkedText):
     open = "{{{#!wiki"
