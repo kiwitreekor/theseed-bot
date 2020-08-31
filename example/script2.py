@@ -1,25 +1,30 @@
 import re, math, sys, os, difflib
 from theseed_bot import theseed, namumark
 
-targets = ['봉숭아 학당(개그 콘서트)']
-log = '자동 편집 중...(역링크 수정 - {})'
+targets = ['메카니멀']
+log = '자동 편집 중...(인용문 색상 제거 - 분류:{})'
 
-def edit_link(doc, text):
+def remove_color(doc, text):
     parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace))
 
     parser.paragraphs.sort_level()
-    
-    # 링크 검색
-    link_targets = parser.paragraphs.find_all(type = 'LinkedText', link = target, recursive = True)
-    
-    for i in link_targets:
-        # 링크 교체
-        i.link = '봉숭아 학당(개그콘서트)'
+
+    # 인용문 검색
+    quote_targets = parser.paragraphs.find_all(type = 'QuotedText', recursive = True)
+
+    for i in quote_targets:
+        # 색상 문법 검색
+        color_targets = i.find_all(type = 'ColoredText', recursive = True)
+
+        for c in color_targets:
+            # 색상 문법 제거
+            idx = c.parent.content.index(c)
+            c.parent.content = c.parent.content[:idx] + c.content + c.parent.content[idx+1:]
     
     new_text = parser.render()
 
     sys.stdout.writelines(list(difflib.unified_diff(text.splitlines(keepends = True), new_text.splitlines(keepends = True))))
-        
+    
     return (new_text, log.format(target))
 
 def do_edit(documents, from_ = None):
@@ -37,7 +42,7 @@ def do_edit(documents, from_ = None):
 
         while not finished and err_count < 4:
             try:
-                namu.edit(str(document), edit_link)
+                namu.edit(str(document), remove_color)
             except theseed.Error as err:
                 if err.code == 'recaptcha-error':
                     namu.logout()
@@ -67,8 +72,9 @@ if __name__ == '__main__':
     namu.logout()
     namu.login()
     
-    for target in targets:
-        documents = namu.backlink(target, flag = theseed.BacklinkFlags.link)
-        do_edit(documents)
-
-    namu = None
+    try:
+        for target in targets:
+            documents = namu.category(target, namespaces=[theseed.Namespaces.document], recursive=-1)
+            do_edit(documents)
+    finally:
+        namu = None
