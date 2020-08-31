@@ -436,11 +436,8 @@ class UnorderedList(MarkedText):
     def preprocess(self, content, offset):
         i = offset
 
-        while i < len(content):
-            if content[i] != ' ':
-                break
-            else:
-                i += 1
+        indent, i = MarkedText.check_indent(content, i)
+        self.inner_indent = max(0, indent - 1)
         
         return i
 
@@ -449,7 +446,10 @@ class UnorderedList(MarkedText):
         for i in range(self.indent):
             result += ' '
         
-        result += self.open + ' '
+        result += self.open
+        
+        for i in range(self.inner_indent + 1):
+            result += ' '
         
         for c in self.content:
             result += str(c)
@@ -471,11 +471,8 @@ class OrderedList(MarkedText):
             self.order = int(order_match[1])
             i += order_match.end()
 
-        while i < len(content):
-            if content[i] != ' ':
-                break
-            else:
-                i += 1
+        indent, i = MarkedText.check_indent(content, i)
+        self.inner_indent = max(0, indent - 1)
         
         return i
 
@@ -489,7 +486,8 @@ class OrderedList(MarkedText):
         if self.order != None:
             result += '#{}'.format(self.order)
         
-        result += ' '
+        for i in range(self.inner_indent + 1):
+            result += ' '
         
         for c in self.content:
             result += str(c)
