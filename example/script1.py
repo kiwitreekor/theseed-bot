@@ -22,16 +22,8 @@ def edit_link(doc, text):
         
     return (new_text, log.format(target))
 
-def do_edit(documents, from_ = None):
-    check = False
+def do_edit(documents):
     for document in documents:
-        if from_:
-            if not check:
-                if str(document) == from_:
-                    check = True
-                else:
-                    continue
-        
         finished = False
         err_count = 0
 
