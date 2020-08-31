@@ -1149,7 +1149,7 @@ class Table(MarkedText):
         assert content[offset] == '|'
         return MarkedText.parse_line(content, offset + 1, close = '|')
     
-    def parse_style(self, content, offset = 0):
+    def parse_style(self, content, offset = 0, first = False):
         styles = {}
         i = offset
         
@@ -1163,6 +1163,9 @@ class Table(MarkedText):
                     if match_style[2] in self.global_style_types:
                         if self.global_style_types[match_style[2]].search(match_style[5]):
                             if match_style[2] not in self.styles:
+                                if first:
+                                    self.style_order.append(match_style[1] + match_style[2])
+
                                 self.styles[match_style[2]] = match_style[5]
                 
                                 i += match_style.end()
@@ -1170,6 +1173,9 @@ class Table(MarkedText):
                     break
                 elif match_style[2] in self.style_types:
                     if self.style_types[match_style[2]].search(match_style[5]):
+                        if first:
+                            self.style_order.append(match_style[2])
+
                         styles[match_style[2]] = match_style[5]
                     else:
                         break
@@ -1180,8 +1186,14 @@ class Table(MarkedText):
                     if match:
                         for k in range(1, len(style_info)):
                             if isinstance(style_info[k], str):
+                                if first:
+                                    self.style_order.append(style_info[k])
+
                                 styles[style_info[k]] = match[k]
                             else:
+                                if first:
+                                    self.style_order.append(style_info[k][0])
+
                                 styles[style_info[k][0]] = style_info[k][1]
                         matched = True
                         break
@@ -1203,6 +1215,7 @@ class Table(MarkedText):
         i = offset
         
         new_row = False
+        first = True
         
         styles = {}
         
@@ -1281,7 +1294,7 @@ class Table(MarkedText):
                 continue
             
             # parse styles
-            styles, i = inst.parse_style(content, i)
+            styles, i = inst.parse_style(content, i, first)
             
             # check align by space
             align_right = False
@@ -1396,6 +1409,7 @@ class Table(MarkedText):
                 new_row = False
             
             colspan = 1
+            first = False
         
         for k in inst.styles.keys():
             if len(k) >= 5:
