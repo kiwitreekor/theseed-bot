@@ -1296,6 +1296,8 @@ class Table(MarkedText):
             cell = []
             old_i = i
 
+            cell_finished = False
+
             while i < len(content):
                 c, i = MarkedText.parse_line(content, i, allow_newline = True, close = '||', start_newline = content[i-1] == '\n')
                 cell.append(c)
@@ -1305,8 +1307,12 @@ class Table(MarkedText):
                     break
 
                 if content[i-2:i] == '||':
+                    cell_finished = True
                     break
             
+            if not cell_finished:
+                cell = None
+
             if cell != None:
                 if 'colspan' not in styles and colspan > 1:
                     styles['colspan'] = str(colspan)
