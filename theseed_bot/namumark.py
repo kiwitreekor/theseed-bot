@@ -1143,7 +1143,8 @@ class Table(MarkedText):
         for row in self.content:
             for cell in row:
                 for content in cell.content:
-                    yield content
+                    for i in content:
+                        yield i
     
     @classmethod
     def parse_caption(cls, content, offset = 0):
