@@ -1133,6 +1133,10 @@ class Table(MarkedText):
     
     def __iter__(self):
         yield self
+
+        if self.caption:
+            for i in self.caption:
+                yield i
         
         for row in self.content:
             for cell in row:
