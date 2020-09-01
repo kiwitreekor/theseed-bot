@@ -1233,12 +1233,6 @@ class Table(MarkedText):
                 inst.caption, i = cls.parse_caption(content, i)
                 if not inst.caption:
                     return None, offset
-                    
-                if len(inst.caption.content) > 0:
-                    if isinstance(inst.caption.content[0], PlainText):
-                        inst.caption.content[0].content = inst.caption.content[0].content.lstrip()
-                    if isinstance(inst.caption.content[-1], PlainText):
-                        inst.caption.content[-1].content = inst.caption.content[-1].content.rstrip()
             else:
                 i += 2
         except IndexError:
@@ -1421,7 +1415,7 @@ class Table(MarkedText):
     def __str__(self):
         result = '||'
         if self.caption:
-            result = '| {} |'.format(self.caption)
+            result = '|{}|'.format(self.caption)
         
         first = True
         style_order = copy.deepcopy(self.style_order)
