@@ -638,6 +638,13 @@ class TheSeed():
         
         return documents
 
+    def get_available_namespaces(self):
+        self.get(self.url('RandomPage'))
+
+        namespaces = self.state['page']['data']['namespaces']
+
+        return namespaces
+
     def history(self, title, from_ = None, until = None, page = -1):
         '''
         "page"
