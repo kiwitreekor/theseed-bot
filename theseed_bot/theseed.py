@@ -1051,13 +1051,18 @@ class TheSeed():
         '''
         document_list = []
 
-        if namespaces == None:
-            # load all namespaces
-            self.get(self.document_url(title, 'backlink'))
+        # load all namespaces
+        self.get(self.document_url(title, 'backlink'))
 
-            namespaces = [x['namespace'] for x in self.state['page']['data']['namespaces']]
+        all_namespaces = [x['namespace'] for x in self.state['page']['data']['namespaces']]
+
+        if namespaces == None:
+            namespaces = all_namespaces
 
         for namespace in namespaces:
+            if namespace not in all_namespaces:
+                continue
+
             finished = False
             next_doc = None
 
