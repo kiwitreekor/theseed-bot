@@ -222,12 +222,12 @@ class MarkedText():
         return '{}({}, {})'.format(self.name, self.indent, repr(self.content))
     
     @classmethod
-    def parse(cls, content, offset = -1, parent = None, close = None):
+    def parse(cls, content, offset = -1, parent = None, allow_comment = True, close = None):
         i = max(0, offset)
         result = []
         
         while i < len(content):
-            p, i = cls.parse_line(content, offset = i, parent = parent, close = close)
+            p, i = cls.parse_line(content, offset = i, parent = parent, allow_comment = allow_comment, close = close)
             result.append(p)
         
         if offset < 0:
@@ -261,7 +261,7 @@ class MarkedText():
         return indent, i
     
     @classmethod
-    def parse_line(cls, content, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, indent = 0):
+    def parse_line(cls, content, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, allow_comment = True, indent = 0):
         i = offset
         close_block = cls.close if not close else close
         multiline = cls.multiline
@@ -292,7 +292,7 @@ class MarkedText():
 
         pre_result = inst.preprocess(content, i)
         
-        if pre_result == None:
+        if pre_result == None or (line_cls == Comment and not allow_comment):
             if line_cls in Namumark.singlelines and cls == MarkedText:
                 del inst
 
@@ -569,7 +569,7 @@ class QuotedText(MarkedText):
 
             i += len(self.open)
         
-        self.content = MarkedText.parse(text, parent = self)
+        self.content = MarkedText.parse(text, parent = self, allow_comment = False)
         return i
     
     def __str__(self):
