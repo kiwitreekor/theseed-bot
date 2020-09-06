@@ -1182,6 +1182,9 @@ class TheSeed():
 
                 categories_json = None
 
+                if 'categorys' not in self.state['page']['data']:
+                    break
+
                 for category_list in self.state['page']['data']['categorys']:
                     if category_list['namespace'] == namespace:
                         categories_json = category_list
