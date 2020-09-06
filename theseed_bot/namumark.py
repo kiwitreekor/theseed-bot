@@ -1244,6 +1244,8 @@ class Table(MarkedText):
         col_num = 0
 
         while i < len(content):
+            comment = None
+
             if content[i] == '\n':
                 old_i = i
                 i += 1
@@ -1527,10 +1529,6 @@ class Table(MarkedText):
                 first = False
             
             row_num += 1
-        
-        for comment in self.comments:
-            if row_num <= comment[1]:
-                result += '\n{}'.format(comment[0])
         
         return result
     
