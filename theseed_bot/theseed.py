@@ -307,7 +307,7 @@ class TheSeed():
 
         self.logger.debug('Parse X-Chika: {}'.format(self.x_chika))
     
-    def request_init(self, req_type, url, parameter = {}):
+    def request_init(self, req_type, url, wait = True, parameter = {}):
         url.baseurl = '/'
 
         finished = False
@@ -318,8 +318,9 @@ class TheSeed():
 
         while not finished and loop_count < self.max_loop_count:
             loop_count += 1
-                
-            self.set_wait('access')
+            
+            if wait:
+                self.set_wait('access')
 
             if req_type == "get":
                 response = requests.get(str(url), cookies=self.cookies, headers=headers)
@@ -330,7 +331,8 @@ class TheSeed():
             else:
                 raise TypeError('{} is invalid request type'.format(req_type))
                 
-            self.wait('access')
+            if wait:
+                self.wait('access')
 
             content_type = response.headers['content-type'].split(';')[0].strip().casefold()
             if content_type == 'text/html':
@@ -363,7 +365,7 @@ class TheSeed():
 
         return response
     
-    def request_internal(self, req_type, url, parameter = {}):
+    def request_internal(self, req_type, url, wait = True, parameter = {}):
         assert self.is_loaded
 
         finished = False
@@ -377,7 +379,8 @@ class TheSeed():
             headers = {'X-Chika': self.x_chika, 'X-Namuwiki-Nonce': self.theseed_nonce_hash(str('/' + url.url).casefold()), 'X-Riko': self.state['session']['hash'],
                 'X-You': self.state['config']['hash'], 'charset': 'utf-8', 'user-agent': self.user_agent}
 
-            self.set_wait('access')
+            if wait:
+                self.set_wait('access')
 
             try:
                 if req_type == "get":
@@ -394,8 +397,9 @@ class TheSeed():
                     continue
                 else:
                     raise e
-                
-            self.wait('access')
+            
+            if wait:
+                self.wait('access')
             
             if response.status_code == 429:
                 input('Resolve the recaptcha.')
@@ -454,11 +458,11 @@ class TheSeed():
         return response
         
         
-    def get(self, url):
+    def get(self, url, wait = True):
         if not self.is_loaded:
-            return self.request_init('get', url)
+            return self.request_init('get', url, wait = wait)
         else:
-            return self.request_internal('get', url)
+            return self.request_internal('get', url, wait = wait)
         
     def post(self, url, parameter, multipart = False):
         if not self.is_loaded:
@@ -1529,3 +1533,16 @@ class TheSeed():
         self.logger.info('Success (acl, {})'.format(title))
 
         return result
+
+    def autocomplete(self, query):
+        assert self.is_loaded
+        params = {'b': self.x_chika, 'q': query}
+
+        response = self.get(self.url('Complete', parameter = params), wait = False)
+
+        json = response.json()
+
+        if json['status'] != 200:
+            raise ValueError('invalid response')
+
+        return json['data']
