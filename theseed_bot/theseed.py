@@ -1159,16 +1159,18 @@ class TheSeed():
         '''
         document_list = []
         
+        # load all namespaces
+        self.get(self.document_url(Namespaces.category + ':' + title, 'w'))
+
+        all_namespaces = [x['namespace'] for x in self.state['page']['data']['categorys']]
+
         if namespaces == None:
-            # load all namespaces
-            self.get(self.document_url(Namespaces.category + ':' + title, 'w'))
-
-            namespaces = [x['namespace'] for x in self.state['page']['data']['categorys']]
-
-            if Namespaces.category in namespaces:
-                del namespaces[namespaces.index(Namespaces.category)]
+            namespaces = all_namespaces
 
         for namespace in namespaces:
+            if namespace not in all_namespaces:
+                continue
+            
             finished = False
             next_doc = None
             
