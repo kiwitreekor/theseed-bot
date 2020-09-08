@@ -649,7 +649,7 @@ class TheSeed():
 
         return namespaces
 
-    def history(self, title, from_ = None, until = None, page = -1):
+    def history(self, title, from_ = None, until = None, page = -1, on_progress = None):
         '''
         "page"
             "data"
@@ -709,6 +709,9 @@ class TheSeed():
                     history.append(h)
             
             self.logger.debug('Success (history, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
+            if on_progress:
+                on_progress(parameters['from'])
+
             i += 1
 
         self.logger.info('Success (history, {})'.format(title))
@@ -1031,7 +1034,7 @@ class TheSeed():
         else:
             return search
 
-    def backlink(self, title, from_ = None, until = None, namespaces = None, flag = None):
+    def backlink(self, title, from_ = None, until = None, namespaces = None, flag = None, on_progress = None):
         '''
         response:
             "page"
@@ -1117,11 +1120,14 @@ class TheSeed():
                 
                 self.logger.debug('Success (backlink, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
 
+                if on_progress:
+                    on_progress(parameters['namespace'], parameters['from'])
+
         self.logger.info('Success (backlink, {})'.format(title))
 
         return document_list
     
-    def _category(self, title, namespaces = None, from_ = None, until = None):
+    def _category(self, title, namespaces = None, from_ = None, until = None, on_progress = None):
         '''
         "page"
             "data"
@@ -1225,26 +1231,29 @@ class TheSeed():
                 
                 self.logger.debug('Success (category, {}{}, partial)'.format(title, ' - from {}'.format(parameters['cfrom']) if 'cfrom' in parameters else ''))
 
+                if on_progress:
+                    on_progress(parameters['namespace'], parameters['cfrom'])
+
         self.logger.info('Success (category, {})'.format(title))
 
         return document_list
     
-    def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1):
+    def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1, on_progress = None):
         if exclude == None:
             exclude = []
 
         if title in exclude:
             return []
         
-        document_list = self._category(title, namespaces, from_, until)
+        document_list = self._category(title, namespaces, from_, until, on_progress)
         
         if recursive != 0:
-            category_list = self._category(title, [Namespaces.category], from_, until)
+            category_list = self._category(title, [Namespaces.category], from_, until, on_progress)
             
             exclude.append(title)
             
             for category in category_list:
-                document_list.extend(self.category(category.title, namespaces, exclude, from_, until, recursive - 1))
+                document_list.extend(self.category(category.title, namespaces, exclude, from_, until, recursive - 1, on_progress))
         
         titles = []
         
