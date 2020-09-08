@@ -712,7 +712,7 @@ class TheSeed():
             
             self.logger.debug('Success (history, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
             if on_progress:
-                on_progress(parameters['from'])
+                on_progress(parameters['from'] if 'from' in parameters else None)
 
             i += 1
 
@@ -1126,7 +1126,7 @@ class TheSeed():
                 self.logger.debug('Success (backlink, {}{}, partial)'.format(title, ' - from {}'.format(parameters['from']) if 'from' in parameters else ''))
 
                 if on_progress:
-                    on_progress(parameters['namespace'], parameters['from'])
+                    on_progress(parameters['namespace'], parameters['from'] if 'from' in parameters else None)
 
         self.logger.info('Success (backlink, {})'.format(title))
 
@@ -1237,7 +1237,7 @@ class TheSeed():
                 self.logger.debug('Success (category, {}{}, partial)'.format(title, ' - from {}'.format(parameters['cfrom']) if 'cfrom' in parameters else ''))
 
                 if on_progress:
-                    on_progress(parameters['namespace'], parameters['cfrom'])
+                    on_progress(parameters['namespace'], parameters['cfrom'] if 'cfrom' in parameters else None)
 
         self.logger.info('Success (category, {})'.format(title))
 
