@@ -245,6 +245,8 @@ class TheSeed():
                 err_type = 'document_not_found'
 
             err_inst = Error(err_type, self.state['page']['data']['content'])
+        elif self.state['page']['viewName'] == 'notfound':
+            err_inst = Error('document_not_found', '문서를 찾을 수 없습니다.')
         
         if 'error' in self.state['page']['data']:
             err = self.state['page']['data']['error']
