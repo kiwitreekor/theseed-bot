@@ -994,7 +994,7 @@ class TheSeed():
         
         self.logger.info('Success (logout)')
     
-    def search(self, query, pages = [1], return_total=False):
+    def search(self, query, pages = [1], return_total = False, on_progress = None):
         '''
         response:
             "page"
@@ -1024,6 +1024,9 @@ class TheSeed():
                 
                 search.append(document)
             self.logger.debug('Success (search, {} - page {})'.format(query, page))
+
+            if on_progress:
+                on_progress(page)
         
         total = self.state['page']['data']['total']
         
