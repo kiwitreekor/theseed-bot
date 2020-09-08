@@ -648,7 +648,7 @@ class TheSeed():
 
         return namespaces
 
-    def history(self, title, from_ = None, until = None, page = -1, on_progress = None):
+    def history(self, title, from_ = None, until = None, page = -1, on_progress = None, stop_callback = None):
         '''
         "page"
             "data"
@@ -674,6 +674,10 @@ class TheSeed():
         i = 0
 
         while not finished and (page < 0 or i < page):
+            if stop_callback:
+                if stop_callback():
+                    break
+            
             parameters = {}
             if from_ and not next_rev:
                 parameters['from'] = from_
@@ -993,7 +997,7 @@ class TheSeed():
         
         self.logger.info('Success (logout)')
     
-    def search(self, query, pages = [1], return_total = False, on_progress = None):
+    def search(self, query, pages = [1], return_total = False, on_progress = None, stop_callback = None):
         '''
         response:
             "page"
@@ -1014,6 +1018,10 @@ class TheSeed():
         search = []
         
         for page in pages:
+            if stop_callback:
+                if stop_callback():
+                    break
+            
             self.get(self.url('Search', {'q': query, 'page': page}))
             
             search_json = self.state['page']['data']['search']
@@ -1036,7 +1044,7 @@ class TheSeed():
         else:
             return search
 
-    def backlink(self, title, from_ = None, until = None, namespaces = None, flag = None, on_progress = None):
+    def backlink(self, title, from_ = None, until = None, namespaces = None, flag = None, on_progress = None, stop_callback = None):
         '''
         response:
             "page"
@@ -1069,6 +1077,10 @@ class TheSeed():
             namespaces = all_namespaces
 
         for namespace in namespaces:
+            if stop_callback:
+                if stop_callback():
+                    break
+            
             if namespace not in all_namespaces:
                 continue
 
@@ -1129,7 +1141,7 @@ class TheSeed():
 
         return document_list
     
-    def _category(self, title, namespaces = None, from_ = None, until = None, on_progress = None):
+    def _category(self, title, namespaces = None, from_ = None, until = None, on_progress = None, stop_callback = None):
         '''
         "page"
             "data"
@@ -1176,6 +1188,10 @@ class TheSeed():
             namespaces = all_namespaces
 
         for namespace in namespaces:
+            if stop_callback:
+                if stop_callback():
+                    break
+            
             if namespace not in all_namespaces:
                 continue
             
@@ -1240,22 +1256,26 @@ class TheSeed():
 
         return document_list
     
-    def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1, on_progress = None):
+    def category(self, title, namespaces = None, exclude = None, from_ = None, until = None, recursive = -1, on_progress = None, stop_callback = None):
         if exclude == None:
             exclude = []
 
         if title in exclude:
             return []
         
-        document_list = self._category(title, namespaces, from_, until, on_progress)
+        document_list = self._category(title, namespaces, from_, until, on_progress, stop_callback)
         
         if recursive != 0:
-            category_list = self._category(title, [Namespaces.category], from_, until, on_progress)
+            category_list = self._category(title, [Namespaces.category], from_, until, on_progress, stop_callback)
             
             exclude.append(title)
             
             for category in category_list:
-                document_list.extend(self.category(category.title, namespaces, exclude, from_, until, recursive - 1, on_progress))
+                if stop_callback:
+                    if stop_callback():
+                        break
+
+                document_list.extend(self.category(category.title, namespaces, exclude, from_, until, recursive - 1, on_progress, stop_callback))
         
         titles = []
         
