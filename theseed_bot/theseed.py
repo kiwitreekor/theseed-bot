@@ -934,7 +934,7 @@ class TheSeed():
 
         self.wait('edit')
 
-    def login(self):
+    def login(self, pin_callback = None):
         '''
         username
         password
@@ -960,19 +960,22 @@ class TheSeed():
             # pin
             if self.state['page']['viewName'] == 'login_pin':
                 if self.state['page']['data']['mode'] == 'pin':
-                    while True:
-                        pin = input('{}로 도착한 PIN을 입력하세요: '.format(self.state['page']['data']['email']))
-                        
-                        if not pin:
-                            return
-                        
-                        try:
-                            response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
-                        except Error as err:
-                            continue
-                        
-                        if self.state['page']['status'] == 302:
-                            break
+                    if pin_callback:
+                        while True:
+                            pin = pin_callback(self.state['page']['data']['email'])
+                            
+                            if not pin:
+                                return
+                            
+                            try:
+                                response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
+                            except Error as err:
+                                continue
+                            
+                            if self.state['page']['status'] == 302:
+                                break
+                    else:
+                        raise Error('login_pin')
                 elif self.state['page']['data']['mode'] == 'disable':
                     response = self.post(self.url('member/login/pin'), {'pin': '123456', 'trust': 'Y'})
                 else:
@@ -1088,6 +1091,10 @@ class TheSeed():
             next_doc = None
 
             while not finished:
+                if stop_callback:
+                    if stop_callback():
+                        break
+
                 parameters = {}
                 if from_ and not next_doc:
                     parameters['from'] = from_
@@ -1199,6 +1206,10 @@ class TheSeed():
             next_doc = None
             
             while not finished:
+                if stop_callback:
+                    if stop_callback():
+                        break
+
                 parameters = {}
                 if from_ and not next_doc:
                     parameters['cfrom'] = from_
