@@ -962,8 +962,10 @@ class TheSeed():
             if self.state['page']['viewName'] == 'login_pin':
                 if self.state['page']['data']['mode'] == 'pin':
                     if pin_callback:
+                        pin_error = None
+
                         while True:
-                            pin = pin_callback(self.state['page']['data']['email'])
+                            pin = pin_callback(self.state['page']['data']['email'], pin_error)
                             
                             if not pin:
                                 return
@@ -971,6 +973,7 @@ class TheSeed():
                             try:
                                 response = self.post(self.url('member/login/pin'), {'pin': pin, 'trust': 'Y'})
                             except Error as err:
+                                pin_error = err
                                 continue
                             
                             if self.state['page']['status'] == 302:
