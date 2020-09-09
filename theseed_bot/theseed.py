@@ -952,6 +952,7 @@ class TheSeed():
             response = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
         except Error as err:
             self.logger.error(err)
+            raise err
         else:
             # record cookies
             if 'kotori' in response.cookies:
@@ -975,6 +976,7 @@ class TheSeed():
                             if self.state['page']['status'] == 302:
                                 break
                     else:
+                        self.logger.error('login_pin ({})'.format(self.state['page']['data']['email']))
                         raise Error('login_pin')
                 elif self.state['page']['data']['mode'] == 'disable':
                     response = self.post(self.url('member/login/pin'), {'pin': '123456', 'trust': 'Y'})
