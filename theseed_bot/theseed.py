@@ -427,12 +427,13 @@ class TheSeed():
             content_type = response.headers['content-type'].split(';')[0].strip().casefold()
             if content_type == 'application/json':
                 self.state['page'].update(json.loads(response.text))
-            elif content_type == 'application/octet-stream':
+            # now unused
+            # elif content_type == 'application/octet-stream':
                 # data = bytearray(response.content)
                 # self.decode_internal(data)
-                data = response.text
-
-                self.state['page'].update(json.loads(self.inflate(data)))
+                # data = response.text
+                #
+                # self.state['page'].update(json.loads(self.inflate(data)))
             else:
                 raise TypeError('{} is unsupported MIME type'.format(content_type))
             
@@ -447,12 +448,10 @@ class TheSeed():
             self.parse_error()
 
         if 'sessionHash' in self.state['page']:
-            self.state['session']['hash'] = self.state['page']['sessionHash']
-            del self.state['page']['sessionHash']
+            self.state['session']['hash'] = self.state['page'].pop('sessionHash')
         
         if 'session' in self.state['page']:
-            self.state['session'].update(self.state['page']['session'])
-            del self.state['page']['session']
+            self.state['session'].update(self.state['page'].pop('session'))
         
         return response
         
@@ -945,11 +944,11 @@ class TheSeed():
         umi
         '''
         
-        id = self.read_config('member.username')
+        username = self.read_config('member.username')
         pw = self.read_config('member.password')
         
         try:
-            response = self.post(self.url('member/login'), {'username': id, 'password': pw, 'autologin': 'Y'})
+            response = self.post(self.url('member/login'), {'username': username, 'password': pw, 'autologin': 'Y'})
         except Error as err:
             self.logger.error(err)
             raise err
@@ -986,7 +985,7 @@ class TheSeed():
                 else:
                     raise NotImplementedError('Unidentified page')
                         
-            self.logger.info('Success (login, {})'.format(id))
+            self.logger.info('Success (login, {})'.format(username))
             
             if 'honoka' in response.cookies:
                 self.cookies['honoka'] = response.cookies['honoka']
@@ -995,9 +994,15 @@ class TheSeed():
                 self.cookies['umi'] = response.cookies['umi']
             
             self.write_config('member.cookies', self.cookies)
+
+            # update session info
+            self.w(self.state['config']['wiki.front_page'])
     
     def logout(self):
         self.get(self.url('member/logout'))
+
+        # update session info
+        self.w(self.state['config']['wiki.front_page'])
         
         self.cookies = {}
         
