@@ -1080,6 +1080,47 @@ class Macro(MarkedText):
     def __repr__(self):
         return '{}({}, {})'.format(self.name, self.macro, self.parameters) if self.parameters else '{}({})'.format(self.name, self.macro)
 
+class MathText(MarkedText):
+    open = '['
+    close = ']'
+    
+    name = 'MathText'
+
+    def preprocess(self, content, offset):
+        match_math = re.match(r'(.*?)(?:\((.*?)(?<!\\)\))?(?=\])', content[offset:], flags = re.DOTALL)
+
+        if not match_math:
+            return None
+        
+        macro = match_math[1].lower()
+
+        if macro != 'math':
+            return None
+
+        self.math = match_math[2]
+
+        return offset + match_math.end()
+    
+    def __str__(self):
+        return '[math({})]'.format(self.math)
+    
+    def __repr__(self):
+        return '{}({})'.format(self.name, repr(self.math))
+
+class OldMathText(MathText):
+    open = '<math>'
+    close = '</math>'
+
+    def preprocess(self, content, offset):
+        match_math = re.match(r'(.*?)(?=</math>)', content[offset:])
+
+        if not match_math:
+            return None
+
+        self.math = match_math[1]
+
+        return offset + match_math.end()
+
 class Table(MarkedText):
     open = None
     close = None
@@ -2052,7 +2093,7 @@ class Namumark():
         FootnoteText,
         LinkedText, BoldText, ItalicText, StrikedText, StrikedText2, UnderlinedText, UpperText, LowerText,
         NowikiText, BoxedText,
-        Macro
+        Macro, MathText, OldMathText
     ]
 
     singlelines = [
