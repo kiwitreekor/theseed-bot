@@ -1010,7 +1010,7 @@ class TheSeed():
         
         self.logger.info('Success (logout)')
     
-    def search(self, query, pages = [1], return_total = False, on_progress = None, stop_callback = None):
+    def search(self, query, namespace = '', target = 'title_content', pages = [1], return_total = False, on_progress = None, stop_callback = None):
         '''
         response:
             "page"
@@ -1035,7 +1035,7 @@ class TheSeed():
                 if stop_callback():
                     break
             
-            self.get(self.url('Search', {'q': query, 'page': page}))
+            self.get(self.url('Search', {'namespace': namespace, 'target': target, 'q': query, 'page': page}))
             
             search_json = self.state['page']['data']['search']
             
