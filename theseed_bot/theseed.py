@@ -1029,6 +1029,15 @@ class TheSeed():
                     "total"
         '''
         search = []
+
+        if namespace:
+            self.get(self.url('Search'))
+            
+            if namespace not in self.state['page']['data']['namespaces']:
+                if return_total:
+                    return (search, 0)
+                else:
+                    return search
         
         for page in pages:
             if stop_callback:
@@ -1036,6 +1045,7 @@ class TheSeed():
                     break
             
             self.get(self.url('Search', {'namespace': namespace, 'target': target, 'q': query, 'page': page}))
+
             
             search_json = self.state['page']['data']['search']
             
@@ -1048,7 +1058,10 @@ class TheSeed():
             if on_progress:
                 on_progress(page)
         
-        total = self.state['page']['data']['total']
+        try:
+            total = self.state['page']['data']['total']
+        except KeyError:
+            total = 0
         
         self.logger.info('Success (search, {})'.format(query))
         
