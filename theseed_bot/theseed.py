@@ -295,9 +295,9 @@ class TheSeed():
         rx_js_rotate = re.compile(rf'\({str_var},(0x[0-9A-Fa-f]+)\)')
         str_rotate = int(rx_js_rotate.search(script_response.text)[1], 16)
         
-        # decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')
-        # for i in range(256):
-        #     self.decode_array.append(int(decode_array_match[i], 16))
+        decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')
+        for i in range(256):
+            self.decode_array.append(int(decode_array_match[i], 16))
         
         self.strings = self.strings[str_rotate:] + self.strings[:str_rotate]
         
@@ -427,13 +427,11 @@ class TheSeed():
             content_type = response.headers['content-type'].split(';')[0].strip().casefold()
             if content_type == 'application/json':
                 self.state['page'].update(json.loads(response.text))
-            # now unused
-            # elif content_type == 'application/octet-stream':
-                # data = bytearray(response.content)
-                # self.decode_internal(data)
-                # data = response.text
-                #
-                # self.state['page'].update(json.loads(self.inflate(data)))
+            elif content_type == 'application/octet-stream':
+                data = bytearray(response.content)
+                self.decode_internal(data)
+                
+                self.state['page'].update(json.loads(self.inflate(data)))
             else:
                 raise TypeError('{} is unsupported MIME type'.format(content_type))
             
