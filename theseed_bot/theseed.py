@@ -1,7 +1,7 @@
 import requests, re, urllib.parse, json, os.path, time, logging, zlib, hashlib, base64
 from bs4 import BeautifulSoup
 
-# theseed v4.18.0
+# theseed v4.18.2
 
 class BaseError(Exception):
     def __init__(self, code, msg = '', title = ''):
@@ -152,11 +152,11 @@ class TheSeed():
 
         self.is_loaded = False
         
-        file_log_level = self.read_config('general.log_level.file')
-        stream_log_level = self.read_config('general.log_level.stream')
+        file_log_level = self.read_config('general/log_level/file')
+        stream_log_level = self.read_config('general/log_level/stream')
         log_formatter = logging.Formatter('[%(asctime)s][%(levelname)s][%(filename)s:%(lineno)s] >> %(message)s')
         
-        log_file_handler = logging.FileHandler(self.read_config('general.log_path'), encoding='utf-8')
+        log_file_handler = logging.FileHandler(self.read_config('general/log_path'), encoding='utf-8')
         log_file_handler.setFormatter(log_formatter)
         log_file_handler.setLevel(level=file_log_level)
         
@@ -192,9 +192,9 @@ class TheSeed():
 
     def wait(self, _type):
         if _type == 'access':
-            wait_time = self.read_config('general.access_interval')
+            wait_time = self.read_config('general/access_interval')
         elif _type == 'edit':
-            wait_time = self.read_config('general.edit_interval')
+            wait_time = self.read_config('general/edit_interval')
         
         time.sleep(max(self.wait_start[_type] + wait_time / 1000 - time.time(), 0))
         
@@ -259,7 +259,7 @@ class TheSeed():
         
         if self.state['session']['member']:
             if 'user_document_discuss' in self.state['session']['member']:
-                if self.state['session']['member']['user_document_discuss'] > self.read_config('general.confirmed_user_discuss'):
+                if self.state['session']['member']['user_document_discuss'] > self.read_config('general/confirmed_user_discuss'):
                     self.logger.critical('Emergency stop!')
                     self.confirm_user_discuss()
                     raise StopSignal(self)
@@ -504,7 +504,7 @@ class TheSeed():
             json.dump(self.config, config_file, ensure_ascii=False, sort_keys=True, indent=4)
     
     def read_config(self, key):
-        keys = key.split('.')
+        keys = key.split('/')
 
         temp = self.config
         try:
@@ -517,7 +517,7 @@ class TheSeed():
         return temp
     
     def write_config(self, key, value):
-        keys = key.split('.')
+        keys = key.split('/')
 
         temp = self.config
         try:
@@ -531,7 +531,7 @@ class TheSeed():
         self.save_config()
 
     def confirm_user_discuss(self):
-        self.write_config('general.confirmed_user_discuss', int(time.time()))
+        self.write_config('general/confirmed_user_discuss', int(time.time()))
         
     # action functions
     def w(self, title, rev = -1):
@@ -796,7 +796,7 @@ class TheSeed():
                 url = self.document_url(title, view_name, param)
                 action_name = view_name
                 
-            self.get(url)
+            response = self.get(url)
             
             if self.state['page']['status'] >= 300 and self.state['page']['status'] < 400 and not request_exists:
                 view_name = 'new_edit_request'
@@ -807,6 +807,9 @@ class TheSeed():
             token = data['token']
             rev = data['body']['baserev']
             text = data['body']['text']
+
+            if 'kotori.sig' in response.cookies:
+                self.cookies['kotori.sig'] = response.cookies['kotori.sig']
             
             result = callback(Document(data['document']), text)
             skip_log = 'Skip ({}, {})'.format(action_name, title)
@@ -942,8 +945,8 @@ class TheSeed():
         umi
         '''
         
-        username = self.read_config('member.username')
-        pw = self.read_config('member.password')
+        username = self.read_config('member/username')
+        pw = self.read_config('member/password')
         
         try:
             response = self.post(self.url('member/login'), {'username': username, 'password': pw, 'autologin': 'Y'})
@@ -954,6 +957,8 @@ class TheSeed():
             # record cookies
             if 'kotori' in response.cookies:
                 self.cookies['kotori'] = response.cookies['kotori']
+            if 'kotori.sig' in response.cookies:
+                self.cookies['kotori.sig'] = response.cookies['kotori.sig']
             
             # pin
             if self.state['page']['viewName'] == 'login_pin':
@@ -991,7 +996,7 @@ class TheSeed():
             if 'umi' in response.cookies:
                 self.cookies['umi'] = response.cookies['umi']
             
-            self.write_config('member.cookies', self.cookies)
+            self.write_config('member/cookies', self.cookies)
 
             # update session info
             self.w(self.state['config']['wiki.front_page'])
@@ -1004,7 +1009,7 @@ class TheSeed():
         
         self.cookies = {}
         
-        self.write_config('member.cookies', {})
+        self.write_config('member/cookies', {})
         
         self.logger.info('Success (logout)')
     
@@ -1477,7 +1482,7 @@ class TheSeed():
             if info['status'] != 'open':
                 continue
 
-            if info['author'] == self.read_config('member.username'):
+            if info['author'] == self.read_config('member/username'):
                 return slug
         
         return None
@@ -1604,5 +1609,5 @@ class TheSeed():
         params = {'b': self.x_chika, 'q': query}
 
         self.get(self.url('Complete', parameter = params))
-        
+
         return self.state['page']['data']
