@@ -1603,11 +1603,6 @@ class TheSeed():
         assert self.is_loaded
         params = {'b': self.x_chika, 'q': query}
 
-        response = requests.get(self.url('internal/Complete', parameter = params), headers = {'X-Chika': self.x_chika})
-
-        json = response.json()
-
-        if json['status'] != 200:
-            raise ValueError('invalid response')
-
-        return json['data']
+        self.get(self.url('Complete', parameter = params))
+        
+        return self.state['page']['data']
