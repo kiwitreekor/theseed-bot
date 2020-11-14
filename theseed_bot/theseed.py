@@ -908,9 +908,9 @@ class TheSeed():
 
         ide = self.state['session']['identifier']
 
-        parameters = {'identifier': (None, ide), 'log': (None, log), 'agree': (None, 'Y')}
+        parameters = {'identifier': ide, 'log': log, 'agree': 'Y'}
 
-        self.post(self.document_url(title, 'delete'), parameters, multipart=True)
+        self.post(self.document_url(title, 'delete'), parameters)
         self.logger.info('Success (delete, {})'.format(title))
 
         self.wait('edit')
