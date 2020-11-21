@@ -298,9 +298,10 @@ class TheSeed():
         
         self.strings = self.strings[str_rotate:] + self.strings[:str_rotate]
         
-        decode_array_match = rx_js_array256.search(script_response.text)[0]
-        for i in rx_js_array256_part.finditer(decode_array_match):
-            self.decode_array.append(int(i[1], 16))
+        decode_array_match = rx_js_array256.search(script_response.text)
+        if decode_array_match:
+            for i in rx_js_array256_part.finditer(decode_array_match[0]):
+                self.decode_array.append(int(i[1], 16))
         
         rx_find_chika = re.compile(r"'X-Chika': *[a-z0-9_]+\('(.*?)'\),")
         
