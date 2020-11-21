@@ -1,7 +1,7 @@
 import requests, re, urllib.parse, json, os.path, time, logging, zlib, hashlib, base64
 from bs4 import BeautifulSoup
 
-# theseed v4.18.2
+# theseed v4.18.3
 
 class BaseError(Exception):
     def __init__(self, code, msg = '', title = ''):
@@ -275,7 +275,8 @@ class TheSeed():
         script_response = requests.get(self.url(script_url))
         
         rx_js_var = re.compile(r'var ([A-Za-z0-9_]+)=\[(.*?)\];')
-        rx_js_array256 = re.compile(r'\[(((0x[0-9A-Fa-f]+),){255}(0x[0-9A-Fa-f]+))\]')
+        rx_js_array256 = re.compile(r'var (_0x[0-9a-f]+)=\[\];(?:\1\[(?:[0-9A-Za-z_]+\(\'0x[0-9A-Fa-f]+\'\)|\'push\')\]\((0x[0-9A-Fa-f]+)\)[,;]){256}')
+        rx_js_array256_part = re.compile(r'(?:_0x[0-9a-f]+\[(?:[0-9A-Za-z_]+\(\'0x[0-9A-Fa-f]+\'\)|\'push\')\]\((0x[0-9A-Fa-f]+)\)[,;])')
         js_var_match = rx_js_var.search(script_response.text)
         
         str_var = js_var_match[1]
@@ -295,11 +296,11 @@ class TheSeed():
         rx_js_rotate = re.compile(rf'\({str_var},(0x[0-9A-Fa-f]+)\)')
         str_rotate = int(rx_js_rotate.search(script_response.text)[1], 16)
         
-        decode_array_match = rx_js_array256.search(script_response.text)[1].split(',')
-        for i in range(256):
-            self.decode_array.append(int(decode_array_match[i], 16))
-        
         self.strings = self.strings[str_rotate:] + self.strings[:str_rotate]
+        
+        decode_array_match = rx_js_array256.search(script_response.text)[0]
+        for i in rx_js_array256_part.finditer(decode_array_match):
+            self.decode_array.append(int(i[1], 16))
         
         rx_find_chika = re.compile(r"'X-Chika': *[a-z0-9_]+\('(.*?)'\),")
         
