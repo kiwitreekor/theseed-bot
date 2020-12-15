@@ -882,6 +882,8 @@ class LinkedText(MarkedText):
         super().__init__(namumark, content, indent)
         self.link = None
         self.anchor = None
+        self.escape = False
+        self.type = 0
     
     def preprocess(self, content, offset):
         match_link = re.match(r'(.*?)((?<!\\)\||(?=\]\]))', content[offset:])
@@ -897,6 +899,21 @@ class LinkedText(MarkedText):
             if len(anchor) > 1:
                 self.link = anchor[0].strip()
                 self.anchor = anchor[1]
+            
+            if self.link[0] == ':':
+                self.escape = True
+                self.link = self.link[1:]
+
+            if ':' in self.link:
+                index = self.link.index(':')
+                ns = self.link[:index]
+                l = self.link[index+1:].lstrip()
+
+                if ns in self.namumark.available_namespaces:
+                    self.link = ns + ':' + l
+                elif self.escape:
+                    self.escape = False
+                    self.link = ':' + self.link
         
         offset += match_link.end()
         
@@ -944,6 +961,10 @@ class LinkedText(MarkedText):
     
     def __str__(self):
         result = self.open
+
+        if self.escape:
+            result += ':'
+
         result += self.link
         
         if self.anchor:
@@ -2119,8 +2140,9 @@ class Namumark():
     default_table_bgcolor = Color('#f5f5f5', '#2d2f34')
     default_bgcolor = Color('#ffffff', '#1f2023')
 
-    def __init__(self, document, process_categories = True):
+    def __init__(self, document, available_namespaces = [], process_categories = True):
         self.document = document
+        self.available_namespaces = available_namespaces
 
         self.parse()
         
