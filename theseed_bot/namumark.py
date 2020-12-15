@@ -1328,7 +1328,7 @@ class Table(MarkedText):
                 
                 # check comment
                 if content[i:i+2] == Comment.open:
-                    comment, i = Comment.parse_line(content, i)
+                    comment, i = Comment.parse_line(content, namumark, i)
                     inst.comments.append((comment, len(inst.content)))
                 
                 # check indentation
