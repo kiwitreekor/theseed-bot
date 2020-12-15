@@ -11,9 +11,12 @@ class Document():
         self.force_show_namespace = force_show_namespace
     
 class Paragraph():
-    def __init__(self, title, level, hidden, content):
+    def __init__(self, namumark, title, level, hidden, content):
+        if not isinstance(namumark, Namumark):
+            raise TypeError()
+
         if title:
-            self.title, i = MarkedText.parse_line(title)
+            self.title, i = MarkedText.parse_line(title, namumark)
         else:
             self.title = None
         
@@ -23,9 +26,11 @@ class Paragraph():
         self.content = content
         self.child = []
 
+        self.namumark = namumark
+
         self.parse()
         
-        self.content = MarkedText.parse(self.content, parent = self)
+        self.content = MarkedText.parse(self.content, namumark, parent = self)
 
     def __str__(self):
         result = ''
@@ -83,7 +88,7 @@ class Paragraph():
                 if start_pos == 0:
                     content = self.content[start_pos:match.start(0)]
                 else:
-                    self.add_child(Paragraph(title, p[1], hidden, self.content[start_pos:match.start(0)]))
+                    self.add_child(Paragraph(self.namumark, title, p[1], hidden, self.content[start_pos:match.start(0)]))
                 
                 hidden = match[1] == '#'
                 title = match['title']
@@ -93,7 +98,7 @@ class Paragraph():
                 found = True
             
             if found:
-                self.add_child(Paragraph(title, p[1], hidden, self.content[start_pos:]))
+                self.add_child(Paragraph(self.namumark, title, p[1], hidden, self.content[start_pos:]))
             else:
                 content = self.content
             
@@ -160,16 +165,22 @@ class MarkedText():
     multiline = False
     
     parent = None
+    namumark = None
     
     start_newline = True
     
     name = 'MarkedText'
     
-    def __init__(self, content = None, indent = 0):
+    def __init__(self, namumark, content = None, indent = 0):
         if content == None:
             self.content = []
         else:
             self.content = content
+        
+        self.namumark = namumark
+        if not isinstance(self.namumark, Namumark):
+            raise TypeError()
+
         self.indent = indent
     
     def __str__(self):
@@ -222,12 +233,12 @@ class MarkedText():
         return '{}({}, {})'.format(self.name, self.indent, repr(self.content))
     
     @classmethod
-    def parse(cls, content, offset = -1, parent = None, allow_comment = True, close = None):
+    def parse(cls, content, namumark, offset = -1, parent = None, allow_comment = True, close = None):
         i = max(0, offset)
         result = []
         
         while i < len(content):
-            p, i = cls.parse_line(content, offset = i, parent = parent, allow_comment = allow_comment, close = close)
+            p, i = cls.parse_line(content, namumark, offset = i, parent = parent, allow_comment = allow_comment, close = close)
             result.append(p)
         
         if offset < 0:
@@ -261,7 +272,7 @@ class MarkedText():
         return indent, i
     
     @classmethod
-    def parse_line(cls, content, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, allow_comment = True, indent = 0):
+    def parse_line(cls, content, namumark, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, allow_comment = True, indent = 0):
         i = offset
         close_block = cls.close if not close else close
         multiline = cls.multiline
@@ -283,8 +294,8 @@ class MarkedText():
                     if content[i:i+len(l.open)] == l.open:
                         line_cls = l
                         break
-                
-        inst = line_cls([], indent)
+        
+        inst = line_cls(namumark, [], indent)
         inst.parent = parent
         
         if line_cls.open:
@@ -296,7 +307,7 @@ class MarkedText():
             if line_cls in Namumark.singlelines and cls == MarkedText:
                 del inst
 
-                inst = cls([], indent)
+                inst = cls(namumark, [], indent)
                 inst.parent = parent
 
                 i -= len(line_cls.open)
@@ -324,7 +335,7 @@ class MarkedText():
             
             if not found:
                 if linestart and content[i] == '|':
-                    r, i = Table.parse_line(content, i, inst, indent = indent)
+                    r, i = Table.parse_line(content, namumark, i, inst, indent = indent)
                     if r:
                         inst.content.append(r)
                         found = True
@@ -332,7 +343,7 @@ class MarkedText():
             if not found:
                 for b in Namumark.brackets:
                     if content[i:i+len(b.open)] == b.open:
-                        r, i = b.parse_line(content, i, inst, indent = indent)
+                        r, i = b.parse_line(content, namumark, i, inst, indent = indent)
                         if r:
                             inst.content.append(r)
                             found = True
@@ -571,7 +582,7 @@ class QuotedText(MarkedText):
 
             i += len(self.open)
         
-        self.content = MarkedText.parse(text, parent = self, allow_comment = False)
+        self.content = MarkedText.parse(text, self.namumark, parent = self, allow_comment = False)
         return i
     
     def __str__(self):
@@ -867,8 +878,8 @@ class LinkedText(MarkedText):
     
     name = 'LinkedText'
     
-    def __init__(self, content = [], indent = 0):
-        super().__init__(content, indent)
+    def __init__(self, namumark, content = [], indent = 0):
+        super().__init__(namumark, content, indent)
         self.link = None
         self.anchor = None
     
@@ -1167,8 +1178,8 @@ class Table(MarkedText):
         'rowbgcolor': re_color
     }
     
-    def __init__(self, content, indent):
-        super().__init__(content, indent)
+    def __init__(self, namumark, content, indent):
+        super().__init__(namumark, content, indent)
         self.styles = {}
         self.comments = []
         
@@ -1254,7 +1265,7 @@ class Table(MarkedText):
         return styles, i
     
     @classmethod
-    def parse_line(cls, content, offset = 0, parent = None, indent = 0):
+    def parse_line(cls, content, namumark, offset = 0, parent = None, indent = 0):
         i = offset
         
         new_row = False
@@ -1264,7 +1275,7 @@ class Table(MarkedText):
         
         assert content[offset] == '|'
         
-        inst = cls([[]], indent)
+        inst = cls(namumark, [[]], indent)
         inst.caption = None
         inst.parent = parent
         
@@ -1351,7 +1362,7 @@ class Table(MarkedText):
             cell_finished = False
 
             while i < len(content):
-                c, i = MarkedText.parse_line(content, i, allow_newline = True, close = '||', start_newline = content[i-1] == '\n')
+                c, i = MarkedText.parse_line(content, namumark, i, allow_newline = True, close = '||', start_newline = content[i-1] == '\n')
                 cell.append(c)
 
                 if not c:
@@ -1374,7 +1385,7 @@ class Table(MarkedText):
                     align_left = content[i-3] == ' '
                     
                     if align_left:
-                        cell[-1], j = MarkedText.parse_line(str(cell[-1]).rstrip(), start_newline = False)
+                        cell[-1], j = MarkedText.parse_line(str(cell[-1]).rstrip(), namumark, start_newline = False)
                     
                     if 'align' not in styles:
                         if align_right and align_left:
@@ -2119,7 +2130,7 @@ class Namumark():
             self.categories = None
     
     def parse(self):
-        self.paragraphs = Paragraph(None, 0, False, self.document.text)
+        self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
     
     def parse_category(self):
         links = self.paragraphs.find_all(type = 'LinkedText', link = re.compile(r'^분류:'), recursive = True)
@@ -2171,13 +2182,13 @@ class Namumark():
             self.categories.pop(i)
     
     def render(self):
-        category_paragraph = MarkedText()
+        category_paragraph = MarkedText(self)
         
         result = str(self.paragraphs)
         
         if self.categories:
             for c in self.categories:
-                l = LinkedText()
+                l = LinkedText(self)
                 l.link = '분류:{}{}'.format(c[0], '#' + c[1] if c[1] else '')
                 
                 category_paragraph.content.append(l)
