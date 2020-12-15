@@ -2169,7 +2169,7 @@ class Namumark():
         
         for l in links:
             l.extract()
-            if not l.parent.content:
+            if not l.parent.content and l.parent.parent:
                 l.parent.extract()
         
         return categories
