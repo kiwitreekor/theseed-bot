@@ -169,6 +169,8 @@ class TheSeed():
         self.logger.setLevel(level=min(stream_log_level, file_log_level))
 
         self.state = {}
+
+        self.available_namespaces = None
     
     def __del__(self):
         self.save_config()
@@ -643,9 +645,10 @@ class TheSeed():
     def get_available_namespaces(self):
         self.get(self.url('RandomPage'))
 
-        namespaces = self.state['page']['data']['namespaces']
+        if not self.available_namespaces:
+            self.available_namespaces = self.state['page']['data']['namespaces']
 
-        return namespaces
+        return self.available_namespaces
 
     def history(self, title, from_ = None, until = None, page = -1, on_progress = None, stop_callback = None):
         '''
