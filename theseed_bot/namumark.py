@@ -1221,9 +1221,9 @@ class Table(MarkedText):
                         yield i
     
     @classmethod
-    def parse_caption(cls, content, offset = 0):
+    def parse_caption(cls, content, namumark, offset = 0):
         assert content[offset] == '|'
-        return MarkedText.parse_line(content, offset + 1, close = '|')
+        return MarkedText.parse_line(content, namumark, offset + 1, close = '|')
     
     def parse_style(self, content, offset = 0, first = False):
         styles = {}
@@ -1306,7 +1306,7 @@ class Table(MarkedText):
         # check caption
         try:
             if not content[i+1] == '|':
-                inst.caption, i = cls.parse_caption(content, i)
+                inst.caption, i = cls.parse_caption(content, namumark, i)
                 if not inst.caption:
                     return None, offset
             else:
