@@ -900,9 +900,10 @@ class LinkedText(MarkedText):
                 self.link = anchor[0].strip()
                 self.anchor = anchor[1]
             
-            if self.link[0] == ':':
-                self.escape = True
-                self.link = self.link[1:]
+            if len(self.link) > 0:
+                if self.link[0] == ':':
+                    self.escape = True
+                    self.link = self.link[1:]
 
             if ':' in self.link:
                 index = self.link.index(':')
