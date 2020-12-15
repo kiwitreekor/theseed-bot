@@ -436,8 +436,9 @@ class UnorderedList(MarkedText):
     def preprocess(self, content, offset):
         i = offset
 
-        if content[i] == ' ':
-            i += 1
+        if i < len(content):
+            if content[i] == ' ':
+                i += 1
         
         return i
 
@@ -468,8 +469,9 @@ class OrderedList(MarkedText):
             self.order = int(order_match[1])
             i += order_match.end()
 
-        if content[i] == ' ':
-            i += 1
+        if i < len(content):
+            if content[i] == ' ':
+                i += 1
         
         return i
 
