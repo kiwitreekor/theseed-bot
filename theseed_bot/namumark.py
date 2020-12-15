@@ -952,6 +952,9 @@ class LinkedText(MarkedText):
             else:
                 raise TypeError()
         
+        if 'escape' in kwargs:
+            result &= kwargs['escape'] == self.escape
+        
         return result
     
     def get_string(self):
@@ -2156,14 +2159,13 @@ class Namumark():
         self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
     
     def parse_category(self):
-        links = self.paragraphs.find_all(type = 'LinkedText', link = re.compile(r'^분류:'), recursive = True)
+        links = self.paragraphs.find_all(type = 'LinkedText', link = re.compile(r'^분류:'), escape = False, recursive = True)
         
         categories = []
-        rx_category = re.compile(r'분류: *(.*)')
         
         for l in links:
-            if rx_category.match(l.link)[1] not in categories:
-                categories.append((rx_category.match(l.link)[1], l.anchor))
+            if l.link[3:] not in categories:
+                categories.append((l.link[3:], l.anchor))
         
         for l in links:
             l.extract()
