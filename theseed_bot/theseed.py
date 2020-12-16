@@ -246,6 +246,8 @@ class TheSeed():
                     err_type = 'permission_edit_request'
                 elif '문서를 찾을 수 없습니다.' in self.state['page']['data']['content']:
                     err_type = 'document_not_found'
+                elif '읽기 권한이 부족합니다.' in self.state['page']['data']['content']:
+                    err_type = 'permission_read'
 
             err_inst = Error(err_type, self.state['page']['data']['content'])
         elif self.state['page']['viewName'] == 'notfound':
