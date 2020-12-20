@@ -884,9 +884,9 @@ class TheSeed():
         token = data['token']
         ide = self.state['session']['identifier']
 
-        parameters = {'token': (None, token), 'identifier': (None, ide), 'title': (None, target), 'log': (None, log), 'mode': (None, '' if not swap else 'swap')}
+        parameters = {'token': token, 'identifier': ide, 'title': target, 'log': log, 'mode': '' if not swap else 'swap'}
         
-        self.post(self.document_url(origin, 'move'), parameters, multipart=True)
+        self.post(self.document_url(origin, 'move'), parameters)
         self.logger.info('Success (move, {} to {})'.format(origin, target))
 
         self.wait('edit')
@@ -1618,3 +1618,73 @@ class TheSeed():
         self.get(self.url('Complete', parameter = params))
 
         return self.state['page']['data']
+    
+    def upload(self, filename, binary, text, log = '', replace = False):
+        '''
+        response:
+            "data":
+                "captcha"
+                "license" {
+                    (name) {
+                        "namespace"
+                        "title"
+                    }
+                }
+                "body"
+                    "baserev"
+                    "text"
+                "category" {
+                    (name) {
+                        "namespace"
+                        "title"
+                    }
+                }
+                "defaultLicense"
+                "licenseText"
+        request:
+            baserev
+            identifier
+            text
+            document
+            file
+            log
+        '''
+        if '.' not in filename:
+            raise ValueError(filename)
+
+        self.set_wait('edit')
+        
+        url = self.url('Upload')
+        self.get(url)
+
+        ide = self.state['session']['identifier']
+        rev = self.state['page']['data']['body']['baserev']
+
+        doc = '파일:' + filename
+        original_doc = doc
+
+        file_id = 1
+
+        while True:
+            if file_id > 1:
+                filename_split = filename.rsplit('.', 1)
+                doc = '파일:' + filename_split[0] + '({}).'.format(file_id) + filename_split[1]
+            parameters = {'identifier': (None, ide), 'baserev': (None, rev), 'document': (None, doc), 'text': (None, text), 'log': (None, log), 'file': (filename, binary)}
+
+            try:
+                self.post(url, parameters, multipart=True)
+            except Error as e:
+                if e.code == 'document_exists' and replace:
+                    file_id += 1
+                else:
+                    raise e
+            else:
+                break
+        
+        if file_id > 1:
+            self.move(original_doc, doc, log='파일 교체', swap=True)
+            self.delete(doc, log='파일 교체')
+            
+        self.wait('edit')
+
+        self.logger.info('Success (upload, {})'.format(filename))
