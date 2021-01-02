@@ -1664,6 +1664,8 @@ class TheSeed():
         original_doc = doc
 
         file_id = 1
+            
+        self.wait('edit')
 
         while True:
             if file_id > 1:
@@ -1684,7 +1686,5 @@ class TheSeed():
         if file_id > 1:
             self.move(original_doc, doc, log='파일 교체', swap=True)
             self.delete(doc, log='파일 교체')
-            
-        self.wait('edit')
 
         self.logger.info('Success (upload, {})'.format(filename))
