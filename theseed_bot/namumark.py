@@ -1371,7 +1371,7 @@ class Table(MarkedText):
             # parse styles
             styles, i = inst.parse_style(content, i, first)
             
-            # check align by space
+            # check gap alignments
             align_right = False
             while i < len(content):
                 if content[i] == ' ':
@@ -1405,20 +1405,19 @@ class Table(MarkedText):
                 if 'colspan' not in styles and colspan > 1:
                     styles['colspan'] = str(colspan)
                 
-                # check align by space
+                # check gap alignments
                 if i - old_i > 1:
                     align_left = content[i-3] == ' '
                     
                     if align_left:
                         cell[-1], j = MarkedText.parse_line(str(cell[-1]).rstrip(), namumark, start_newline = False)
                     
-                    if 'align' not in styles:
-                        if align_right and align_left:
-                            styles['gapalign'] = 'center'
-                        elif align_right:
-                            styles['gapalign'] = 'right'
-                        elif align_left:
-                            styles['gapalign'] = 'left'
+                    if align_right and align_left:
+                        styles['gapalign'] = 'center'
+                    elif align_right:
+                        styles['gapalign'] = 'right'
+                    elif align_left:
+                        styles['gapalign'] = 'left'
             
             if new_row:
                 # check if it is complete table
@@ -1514,7 +1513,6 @@ class Table(MarkedText):
                     result += ' '
                 result += '||'
             for cell in row:
-                only_gapalign = True
                 front_align_str = ''
                 back_align_str = ''
                 
@@ -1588,17 +1586,12 @@ class Table(MarkedText):
                 
                 # apply gap alignments
                 for type, style in cell.styles.items():
-                    if type == 'align':
-                        only_gapalign = False
+                    if type == 'gapalign':
+                        if style == 'right' or style == 'center':
+                            front_align_str += ' '
+                        if style == 'left' or style == 'center':
+                            back_align_str += ' '
                         break
-                if only_gapalign:
-                    for type, style in cell.styles.items():
-                        if type == 'gapalign':
-                            if style == 'right' or style == 'center':
-                                front_align_str += ' '
-                            if style == 'left' or style == 'center':
-                                back_align_str += ' '
-                            break
                 
                 content = ''
                 for c in cell.content:
@@ -1933,11 +1926,9 @@ class Table(MarkedText):
         return result
     
     def compress_align(self):
-        type = 'align'
-
         for row in self.content:
             for cell in row:
-                if type in cell.styles:
+                if 'align' in cell.styles:
                     cell.styles['gapalign'] = cell.styles.pop('align')
 
     def __repr__(self):
