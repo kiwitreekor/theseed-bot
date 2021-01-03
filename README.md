@@ -55,6 +55,7 @@ the seed 계열을 위한 API 제공.
     - ACL 불러오기
     - 토론 불러오기
     - 토론 댓글 남기기
+    - 파일 업로드
 
 * no-force-recaptcha를 요구하는 기능
     - 편집 요청 생성

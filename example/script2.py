@@ -5,7 +5,7 @@ targets = ['메카니멀']
 log = '자동 편집 중...(인용문 색상 제거 - 분류:{})'
 
 def remove_color(doc, text):
-    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace))
+    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace), available_namespaces=namu.get_available_namespaces())
 
     parser.paragraphs.sort_level()
 

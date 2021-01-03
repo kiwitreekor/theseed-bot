@@ -1,45 +1,24 @@
 import re, math, sys, os, difflib
 from theseed_bot import theseed, namumark
 
-log = '자동 편집 중...(다크 모드 대응)'
+log = '자동 편집 중...(셀 정렬 문법 통일)'
 
-def edit_dark(doc, text):
+def unify_align(doc, text):
     parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace), available_namespaces=namu.get_available_namespaces())
     
     parser.paragraphs.sort_level()
+    # parser만 불러온 뒤 바로 아무것도 하지 않고 바로 render()를 할 경우,
+    # 셀 내용 정렬시 <(><:><)>가 존재하면 살려두고, 없이 여백만 있으면 여백을 이용합니다.
 
-    targets = []
-        
-    targets.extend(parser.paragraphs.find_all(type = 'WikiDiv', recursive = True))
-    targets.extend(parser.paragraphs.find_all(type = 'HtmlText', recursive = True))
-        
-    for target in targets:
-        target.separate_color()
-    
-    table_targets = parser.paragraphs.find_all(type = 'Table', recursive = True)
+    table_targets = []
+    table_targets.extend(parser.paragraphs.find_all(type = 'Table', recursive = True))
     
     for target in table_targets:
-        target.apply_styles()
+        # 아래 함수는 <(><:><)>를 ||에 붙이는 여백 문법으로 바꿉니다.
+        target.compress_align()
     
-    colortext_targets = parser.paragraphs.find_all(type = 'ColoredText', recursive = True)
-    linkedtext_targets = parser.paragraphs.find_all(type = 'LinkedText', recursive = True)
-    
-    for target in table_targets:
-        target.generate_dark()
-        
-    for target in colortext_targets:
-        target.generate_dark()
-            
-    for target in linkedtext_targets:
-        target.generate_dark()
-    
-    for target in table_targets:
-        target.compress()
-
     new_text = parser.render()
 
-    sys.stdout.writelines(list(difflib.unified_diff(text.splitlines(keepends = True), new_text.splitlines(keepends = True))))
-    
     return (new_text, log)
 
 def do_edit():
@@ -53,7 +32,7 @@ def do_edit():
 
             while not finished and err_count < 4:
                 try:
-                    namu.edit(str(document), edit_dark)
+                    namu.edit(str(document), unify_align)
                 except theseed.Error as err:
                     if err.code == 'recaptcha-error':
                         namu.logout()

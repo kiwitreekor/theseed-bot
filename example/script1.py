@@ -5,7 +5,7 @@ targets = ['봉숭아 학당(개그 콘서트)']
 log = '자동 편집 중...(역링크 수정 - {})'
 
 def edit_link(doc, text):
-    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace))
+    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace), available_namespaces=namu.get_available_namespaces())
 
     parser.paragraphs.sort_level()
     
