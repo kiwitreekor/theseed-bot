@@ -1535,14 +1535,14 @@ class Table(MarkedText):
                             style_str += '<v|{}>'.format(style)
                     elif type == 'align':
                         if cell.styles['align'] == 'right':
-                            style_str += '<)>'.format(style)
+                            style_str += '<)>'
                             back_align_str += ' '
                         elif cell.styles['align'] == 'center':
-                            style_str += '<:>'.format(style)
+                            style_str += '<:>'
                             back_align_str += ' '
                             front_align_str += ' '
                         elif cell.styles['align'] == 'left':
-                            style_str += '<(>'.format(style)
+                            style_str += '<(>'
                             front_align_str += ' '
                 
                 if first:
