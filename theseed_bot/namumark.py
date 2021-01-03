@@ -1536,14 +1536,10 @@ class Table(MarkedText):
                     elif type == 'align':
                         if cell.styles['align'] == 'right':
                             style_str += '<)>'
-                            back_align_str += ' '
                         elif cell.styles['align'] == 'center':
                             style_str += '<:>'
-                            back_align_str += ' '
-                            front_align_str += ' '
                         elif cell.styles['align'] == 'left':
                             style_str += '<(>'
-                            front_align_str += ' '
                 
                 if first:
                     # apply global styles
