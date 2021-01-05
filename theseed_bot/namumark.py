@@ -646,7 +646,7 @@ class WikiDiv(MarkedText):
         if 'color' in self.styles:
             color = self.styles.pop('color')
             
-            colored_text = ColoredText(self.content)
+            colored_text = ColoredText(self.namumark, self.content)
             colored_text.color = Color(color)
             
             self.content = [colored_text]
@@ -720,7 +720,7 @@ class HtmlText(MarkedText):
                 
                 target.unwrap()
                 
-                colored_text = ColoredText([self])
+                colored_text = ColoredText(self.namumark, [self])
                 colored_text.color = Color(color)
                 
                 index = self.parent.content.index(self)
@@ -933,9 +933,9 @@ class LinkedText(MarkedText):
 
         if Color.get_difference(bgcolor.get_dark(), Namumark.default_link_color.dark) < 150:
             if self.content:
-                colored_text = ColoredText(self.content)
+                colored_text = ColoredText(self.namumark, self.content)
             else:
-                colored_text = ColoredText([PlainText(self.link)])
+                colored_text = ColoredText(self.namumark, [PlainText(self.link)])
             
             colored_text.color = Color(Namumark.default_link_color.light)
             
