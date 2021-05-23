@@ -2,8 +2,8 @@ from setuptools import find_packages, setup
 
 setup(
     name='theseed-bot',
-    version='2.7.1',
-	description='theseed engine api',
+    version='2.8',
+	description='namumark parser',
 	url='https://github.com/kiwitreekor/theseed-bot',
 	author='kiwitree',
 	author_email='kiwitreekor@gmail.com',

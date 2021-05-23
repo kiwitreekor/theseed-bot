@@ -1,10 +1,12 @@
-import re, math, sys, os, difflib
+import re, math, sys, os, difflib, time, requests
 from theseed_bot import theseed, namumark
 
+targets = ['문서명 1', '문서명 2', '문서명 3', '문서명 4']
 log = '자동 편집 중...(다크 모드 대응)'
 
-def edit_dark(doc, text):
-    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace), available_namespaces=namu.get_available_namespaces())
+def edit_dark(title, text):
+    # 파서 초기화
+    parser = namumark.Namumark(title, text)
     
     parser.paragraphs.sort_level()
 
@@ -41,51 +43,24 @@ def edit_dark(doc, text):
     sys.stdout.writelines(list(difflib.unified_diff(text.splitlines(keepends = True), new_text.splitlines(keepends = True))))
     
     return (new_text, log)
-
-def do_edit():
-    i = 0
-    while i < 500:
-        documents = namu.randompage()
-
-        for document in documents:
-            finished = False
-            err_count = 0
-
-            while not finished and err_count < 4:
-                try:
-                    namu.edit(str(document), edit_dark)
-                except theseed.Error as err:
-                    if err.code == 'recaptcha-error':
-                        namu.logout()
-                        namu.login()
-                        
-                        err_count += 1
-                        continue
-                    elif err.code == 'permission_edit':
-                        finished = True
-                        continue
-                    elif err.code == 'same_content':
-                        finished = True
-                        pass
-                    elif err.code == 'already_edit_request_exists':
-                        finished = True
-                        pass
-                    else:
-                        raise err
-                except theseed.StopSignal:
-                    sys.exit()
-                else:
-                    finished = True
-        
-        i += 1
                     
+headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer ?'}
+
 if __name__ == '__main__':
-    namu = theseed.TheSeed('namu.wiki')
-
-    namu.logout()
-    namu.login()
-
-    try:
-        do_edit()
-    finally:
-        namu = None
+    # theseed API 활용 방법은 https://doc.theseed.io/ 참고
+    for doc in targets:
+        res = requests.get('https://namu.wiki/api/edit/{}'.format(doc), headers = headers).json()
+        try:
+            if not res['exists']:
+                continue
+        except:
+            print(res)
+            continue
+        
+        token = res['token']
+        new_text, log = edit_dark('문서', doc, False, res['text'])
+        
+        res = requests.post('https://namu.wiki/api/edit/{}'.format(doc), json = {'text': new_text, 'log': log, 'token': token}, headers = headers)
+        print(res.text)
+        
+        time.sleep(1)

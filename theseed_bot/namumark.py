@@ -4,8 +4,7 @@ from bs4 import BeautifulSoup
 # namumark parser
 
 class Document():
-    def __init__(self, namespace, title, text, force_show_namespace = True):
-        self.namespace = namespace
+    def __init__(self, title, text, force_show_namespace = True):
         self.title = title
         self.text = text
         self.force_show_namespace = force_show_namespace
@@ -2158,9 +2157,9 @@ class Namumark():
     default_table_bgcolor = Color('#f5f5f5', '#2d2f34')
     default_bgcolor = Color('#ffffff', '#1f2023')
 
-    def __init__(self, document, available_namespaces = [], process_categories = True):
-        self.document = document
-        self.available_namespaces = available_namespaces
+    def __init__(self, title, text, available_namespaces = None, process_categories = True):
+        self.document = Document(title, text)
+        self.available_namespaces = available_namespaces if available_namespaces else ['문서', '틀', '분류', '파일']
 
         self.parse()
         

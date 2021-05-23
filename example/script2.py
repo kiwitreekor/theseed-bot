@@ -1,12 +1,14 @@
-import re, math, sys, os, difflib
-from theseed_bot import theseed, namumark
+import re, math, sys, os, difflib, time, requests
+from theseed_bot import namumark
 
-targets = ['메카니멀']
+targets = ['문서명 1', '문서명 2', '문서명 3', '문서명 4']
 log = '자동 편집 중...(인용문 색상 제거 - 분류:{})'
 
-def remove_color(doc, text):
-    parser = namumark.Namumark(namumark.Document(doc.namespace, doc.title, text, force_show_namespace=doc.force_show_namespace), available_namespaces=namu.get_available_namespaces())
+def remove_color(title, text):
+    # 파서 초기화
+    parser = namumark.Namumark(title, text)
 
+    # 문단 정렬
     parser.paragraphs.sort_level()
 
     # 인용문 검색
@@ -26,47 +28,38 @@ def remove_color(doc, text):
     sys.stdout.writelines(list(difflib.unified_diff(text.splitlines(keepends = True), new_text.splitlines(keepends = True))))
     
     return (new_text, log.format(target))
-
-def do_edit(documents):
-    for document in documents:
-        finished = False
-        err_count = 0
-
-        while not finished and err_count < 4:
-            try:
-                namu.edit(str(document), remove_color)
-            except theseed.Error as err:
-                if err.code == 'recaptcha-error':
-                    namu.logout()
-                    namu.login()
                     
-                    err_count += 1
-                    continue
-                elif err.code == 'permission_edit':
-                    finished = True
-                    continue
-                elif err.code == 'same_content':
-                    finished = True
-                    pass
-                elif err.code == 'already_edit_request_exists':
-                    finished = True
-                    pass
-                else:
-                    raise err
-            except theseed.StopSignal:
-                sys.exit()
-            else:
-                finished = True
-                    
+headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer ?'}
+
 if __name__ == '__main__':
-    namu = theseed.TheSeed('namu.wiki')
-
-    namu.logout()
-    namu.login()
-    
-    try:
-        for target in targets:
-            documents = namu.category(target, namespaces=[theseed.Namespaces.document], recursive=-1)
-            do_edit(documents)
-    finally:
-        namu = None
+    # theseed API 활용 방법은 https://doc.theseed.io/ 참고
+    for target in targets:
+        target_backlinks = []
+        next = None
+        
+        while True:
+            res = requests.get('https://namu.wiki/api/backlink/{}?from={}'.format(target, next), headers = headers).json()
+            
+            for doc in res['backlinks']:
+                target_backlinks.append(doc['document'])
+            
+            next = res['from']
+            if not next:
+                break
+        
+        for doc in target_backlinks:
+            res = requests.get('https://namu.wiki/api/edit/{}'.format(doc), headers = headers).json()
+            try:
+                if not res['exists']:
+                    continue
+            except:
+                print(res)
+                continue
+            
+            token = res['token']
+            new_text, log = remove_color('문서', doc, False, res['text'])
+            
+            res = requests.post('https://namu.wiki/api/edit/{}'.format(doc), json = {'text': new_text, 'log': log, 'token': token}, headers = headers)
+            print(res.text)
+            
+            time.sleep(1)
