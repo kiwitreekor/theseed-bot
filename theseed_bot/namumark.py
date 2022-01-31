@@ -2022,7 +2022,7 @@ class Color():
         if not isinstance(color, Color):
             return False
         
-        if color.light == self.light and color.dark == self.dark:
+        if color.light.lower() == self.light.lower() and color.dark.lower() == self.dark.lower():
             return True
         return False
     
@@ -2115,11 +2115,11 @@ class Color():
         
         colors = re.split(r'(?<!\\),', match_color[0])
         
-        light = colors[0].lower()
+        light = colors[0]
         dark = None
         
         if len(colors) > 1:
-            dark = colors[1].lower()
+            dark = colors[1]
         
         if return_offset:
             return cls(light, dark), offset + match_color.end()
