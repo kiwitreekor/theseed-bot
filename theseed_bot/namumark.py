@@ -889,20 +889,23 @@ class LinkedText(MarkedText):
         if not match_link:
             return None
         
-        self.link = match_link[1].strip()
+        self.link = match_link[1].rstrip()
         self.anchor = None
         
         if not re.match(r'https?://', match_link[1]):
             anchor = re.split(r'(?<!\\)#', match_link[1], maxsplit = 1)
             
             if len(anchor) > 1:
-                self.link = anchor[0].strip()
+                self.link = anchor[0].rstrip()
                 self.anchor = anchor[1]
             
             if len(self.link) > 0:
                 if self.link[0] == ':':
                     self.escape = True
                     self.link = self.link[1:]
+                elif self.link[0] == ' ':
+                    self.escape = True
+                    self.link = self.link.lstrip()
 
             if ':' in self.link:
                 index = self.link.index(':')
