@@ -1005,9 +1005,10 @@ class LinkedText(MarkedText):
     
     @property
     def is_file(self):
-        if len(self.link) >= 3:
-            if self.link[:3] == '파일:':
-                return True
+        if not self.escape:
+            if len(self.link) >= 3:
+                if self.link[:3] == '파일:':
+                    return True
         return False
     
     def __str__(self):
