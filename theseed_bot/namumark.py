@@ -370,9 +370,10 @@ class MarkedText():
     
     def __iter__(self):
         yield self
-        for child in self.content:
-            for content in child:
-                yield content
+        if self.content:
+            for child in self.content:
+                for content in child:
+                    yield content
     
     def filter(self, **kwargs):
         result = True
@@ -402,6 +403,27 @@ class MarkedText():
                     return None
                 else:
                     return self.parent.content.pop(self.parent.content.index(self))
+        else:
+            raise TypeError()
+    
+    def insert(self, inst, idx):
+        if idx < 0 or idx > len(self.content):
+            raise ValueError()
+        
+        self.content = self.content[:idx] + [inst] + self.content[idx:]
+        inst.parent = self
+    
+    def insert_prev(self, inst):
+        if self.parent:
+            idx = self.parent.content.index(self)
+            self.parent.insert(inst, idx)
+        else:
+            raise TypeError()
+    
+    def insert_next(self, inst):
+        if self.parent:
+            idx = self.parent.content.index(self)
+            self.parent.insert(inst, idx+1)
         else:
             raise TypeError()
 
@@ -877,11 +899,12 @@ class LinkedText(MarkedText):
     
     name = 'LinkedText'
     
-    def __init__(self, namumark, content = [], indent = 0):
+    def __init__(self, namumark, content = [], indent = 0, **kwargs):
         super().__init__(namumark, content, indent)
         self.link = None
         self.anchor = None
         self.escape = False
+        self.parameters = None
         self.type = 0
     
     def preprocess(self, content, offset):
@@ -922,10 +945,22 @@ class LinkedText(MarkedText):
         
         return offset
     
+    def postprocess(self, content, offset):
+        if self.is_file:
+            params = self.get_string().split('&')
+            self.parameters = {}
+            
+            for param in params:
+                if '=' in param:
+                    index = param.index('=')
+                    self.parameters[param[:index]] = param[index+1:]
+            self.content = None
+        
+        return offset
+    
     def generate_dark(self, override = False):
-        if len(self.link) >= 3:
-            if self.link[:3] == '파일:':
-                return
+        if self.is_file:
+            return
     
         if len(self.content) == 1:
             if isinstance(self.content[0], ColoredText):
@@ -957,6 +992,9 @@ class LinkedText(MarkedText):
         if 'escape' in kwargs:
             result &= kwargs['escape'] == self.escape
         
+        if 'is_file' in kwargs:
+            result &= kwargs['is_file'] == self.is_file
+        
         return result
     
     def get_string(self):
@@ -964,6 +1002,13 @@ class LinkedText(MarkedText):
             return super().get_string()
         
         return self.link
+    
+    @property
+    def is_file(self):
+        if len(self.link) >= 3:
+            if self.link[:3] == '파일:':
+                return True
+        return False
     
     def __str__(self):
         result = self.open
@@ -976,7 +1021,14 @@ class LinkedText(MarkedText):
         if self.anchor:
             result += '#' + self.anchor
         
-        if self.content:
+        if self.is_file:
+            params = ''
+            for key, value in self.parameters.items():
+                params += key + '=' + value + '&'
+            
+            if params:
+                result += '|' + params[:-1]
+        elif self.content:
             content = ''
             for c in self.content:
                 content += str(c)
