@@ -1035,7 +1035,7 @@ class Macro(MarkedText):
     
     name = 'Macro'
     
-    defined_macros = ['목차', 'tableofcontents', 'date', 'datetime', 'br', 'pagecount', 'include', 'footnote', 'age', 'dday', 'ruby', 'youtube', 'kakaotv', 'nicovideo', 'navertv', 'clearfix']
+    defined_macros = ['목차', '각주', 'tableofcontents', 'date', 'datetime', 'br', 'pagecount', 'include', 'footnote', 'age', 'dday', 'ruby', 'youtube', 'kakaotv', 'nicovideo', 'navertv', 'clearfix', 'kakaotv', 'vimeo']
     
     def preprocess(self, content, offset):
         match_macro = re.match(r'(.*?)(?:\((.*?)(?<!\\)\))?(?=\])', content[offset:])
