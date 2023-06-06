@@ -947,14 +947,15 @@ class LinkedText(MarkedText):
     
     def postprocess(self, content, offset):
         if self.is_file:
-            params = self.get_string().split('&')
             self.parameters = {}
-            
-            for param in params:
-                if '=' in param:
-                    index = param.index('=')
-                    self.parameters[param[:index]] = param[index+1:]
-            self.content = None
+            if self.content:
+                params = self.get_string().split('&')
+                
+                for param in params:
+                    if '=' in param:
+                        index = param.index('=')
+                        self.parameters[param[:index]] = param[index+1:]
+                self.content = None
         
         return offset
     
