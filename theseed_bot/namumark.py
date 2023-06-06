@@ -1108,7 +1108,7 @@ class Macro(MarkedText):
             
             for param in parameters:
                 if '=' in param and len(self.parameters) > 0:
-                    named_param = re.split(r'(?<!\\)=\s*', param, maxsplit = 1)
+                    named_param = re.split(r'(?<!\\)=', param, maxsplit = 1)
                     if len(named_param) > 1:
                         self.named_parameters[named_param[0]] = named_param[1]
                 else:
