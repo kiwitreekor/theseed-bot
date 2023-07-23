@@ -1,7 +1,10 @@
-import re, urllib.parse, json, os.path, time, logging, io, copy, colorsys, webcolors, math
+from __future__ import annotations
+import re, copy, colorsys, webcolors, math
 from bs4 import BeautifulSoup
 
 # namumark parser
+
+version = '2.9'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -10,7 +13,7 @@ class Document():
         self.force_show_namespace = force_show_namespace
     
 class Paragraph():
-    def __init__(self, namumark, title, level, hidden, content):
+    def __init__(self, namumark: Namumark, title: str, level: str, hidden: bool, content: str):
         if not isinstance(namumark, Namumark):
             raise TypeError()
 
@@ -22,11 +25,11 @@ class Paragraph():
         self.level = level
         self.hidden = hidden
 
-        self.content = content
         self.child = []
 
         self.namumark = namumark
 
+        self.content = content
         self.parse()
         
         self.content = MarkedText.parse(self.content, namumark, parent = self)
@@ -170,7 +173,7 @@ class MarkedText():
     
     name = 'MarkedText'
     
-    def __init__(self, namumark, content = None, indent = 0):
+    def __init__(self, namumark: Namumark, content = None, indent = 0):
         if content == None:
             self.content = []
         else:
@@ -271,7 +274,7 @@ class MarkedText():
         return indent, i
     
     @classmethod
-    def parse_line(cls, content, namumark, offset = 0, parent = None, allow_newline = False, start_newline = None, close = None, allow_comment = True, indent = 0):
+    def parse_line(cls, content, namumark: Namumark, offset = 0, parent: MarkedText = None, allow_newline = False, start_newline = None, close = None, allow_comment = True, indent = 0):
         i = offset
         close_block = cls.close if not close else close
         multiline = cls.multiline
@@ -406,24 +409,58 @@ class MarkedText():
         else:
             raise TypeError()
     
-    def insert(self, inst, idx):
+    @property
+    def next_sibling(self):
+        idx = self.parent.content.index(self) + 1
+        if idx >= len(self.content):
+            return None
+        else:
+            return self.parent.content[idx]
+    
+    @property
+    def prev_sibling(self):
+        idx = self.parent.content.index(self) - 1
+        if idx < 0:
+            return None
+        else:
+            return self.parent.content[idx]
+    
+    @property
+    def next_siblings(self):
+        idx = self.parent.content.index(self) + 1
+        while idx < len(self.content):
+            yield self.parent.content[idx]
+            idx += 1
+    
+    @property
+    def prev_siblings(self):
+        idx = self.parent.content.index(self) - 1
+        while idx >= 0:
+            yield self.parent.content[idx]
+            idx -= 1
+
+    def insert_child(self, inst, idx):
         if idx < 0 or idx > len(self.content):
-            raise ValueError()
+            raise IndexError()
         
         self.content = self.content[:idx] + [inst] + self.content[idx:]
+        inst.parent = self
+    
+    def append_child(self, inst):
+        self.content.append(inst)
         inst.parent = self
     
     def insert_prev(self, inst):
         if self.parent:
             idx = self.parent.content.index(self)
-            self.parent.insert(inst, idx)
+            self.parent.insert_child(inst, idx)
         else:
             raise TypeError()
     
     def insert_next(self, inst):
         if self.parent:
             idx = self.parent.content.index(self)
-            self.parent.insert(inst, idx+1)
+            self.parent.insert_child(inst, idx+1)
         else:
             raise TypeError()
 
@@ -923,19 +960,28 @@ class LinkedText(MarkedText):
                 self.anchor = anchor[1]
             
             if len(self.link) > 0:
+                escape = False
                 if self.link[0] == ':':
-                    self.escape = True
-                    self.link = self.link[1:]
+                    link = self.link[1:]
+                    escape = True
                 elif self.link[0] == ' ':
-                    self.escape = True
-                    self.link = self.link.lstrip()
+                    link = self.link.lstrip()
+                    self.link = link
+                    escape = True
+                
+                if escape:
+                    if ':' in self.link:
+                        split = link.split(':', 1)
+                        if split[0] in self.namumark.special_namespaces:
+                            self.link = link
+                            self.escape = True
 
             if ':' in self.link:
-                index = self.link.index(':')
-                ns = self.link[:index]
-                l = self.link[index+1:].lstrip()
+                split = self.link.split(':', 1)
+                ns = split[0]
+                l = split[1].lstrip()
 
-                if ns in self.namumark.available_namespaces:
+                if ns in self.namumark.namespaces:
                     self.link = ns + ':' + l
                 elif self.escape:
                     self.escape = False
@@ -981,15 +1027,18 @@ class LinkedText(MarkedText):
     
     def filter(self, **kwargs):
         result = super().filter(**kwargs)
-        
+
         if 'link' in kwargs:
             if isinstance(kwargs['link'], re.Pattern):
-                result &= bool(kwargs['link'].search(self.link))
+                result &= bool(kwargs['link'].search(self.get_link()))
             elif isinstance(kwargs['link'], str):
-                result &= kwargs['link'] == self.link
+                result &= kwargs['link'] == self.get_link()
             else:
                 raise TypeError()
         
+        if 'namespace' in kwargs:
+            result &= kwargs['namespace'] == self.namespace
+
         if 'escape' in kwargs:
             result &= kwargs['escape'] == self.escape
         
@@ -1004,19 +1053,38 @@ class LinkedText(MarkedText):
         
         return self.link
     
+    def get_link(self):
+        link = self.link
+        if len(self.link) > 0:
+            if self.link[0] == '/':
+                link = self.namumark.document.title + self.link
+        return link
+
+    @property
+    def namespace(self):
+        if ':' in self.link:
+            split = self.link.split(':', 1)
+            ns = split[0]
+
+            if ns in self.namumark.namespaces:
+                return ns
+            else:
+                return None
+
     @property
     def is_file(self):
-        if not self.escape:
-            if len(self.link) >= 3:
-                if self.link[:3] == '파일:':
-                    return True
-        return False
+        return self.namespace == '파일' and not self.escape
+
+    @property
+    def is_category(self):
+        return self.namespace == '분류' and not self.escape
     
     def __str__(self):
         result = self.open
 
         if self.escape:
-            result += ':'
+            if self.namespace in self.namumark.special_namespaces:
+                result += ':'
 
         result += self.link
         
@@ -1036,6 +1104,10 @@ class LinkedText(MarkedText):
                 content += str(c)
             if content != self.link:
                 result += '|' + content
+        
+        if len(self.link) >= 1:
+            if not self.content and self.link[-1] == ']':
+                result += ' '
         
         result += self.close
         return result
@@ -2193,6 +2265,8 @@ class Namumark():
         (re.compile(r'^=====(#)? (?P<title>.*) (?(1)#)=====$', flags=re.MULTILINE), 5),
         (re.compile(r'^======(#)? (?P<title>.*) (?(1)#)======$', flags=re.MULTILINE), 6),
     ]
+
+    regex_redirect = re.compile(r'#redirect ')
     
     brackets = [
         OldBoxedText,
@@ -2214,35 +2288,38 @@ class Namumark():
     default_table_bgcolor = Color('#f5f5f5', '#2d2f34')
     default_bgcolor = Color('#ffffff', '#1f2023')
 
-    def __init__(self, title, text, available_namespaces = None, process_categories = True):
+    namespaces = ['문서', '틀', '분류', '파일', '사용자', '나무위키', '위키운영', '휴지통', '파일휴지통', '템플릿']
+    special_namespaces = ['분류', '파일']
+
+    def __init__(self, title, text):
         self.document = Document(title, text)
-        self.available_namespaces = available_namespaces if available_namespaces else ['문서', '틀', '분류', '파일']
+
+        self.redirect = None
+        self.paragraphs = None
+        self.categories = []
 
         self.parse()
         
-        if process_categories:
-            self.categories = self.parse_category()
-        else:
-            self.categories = None
-    
+        if self.paragraphs:
+            self.parse_category()
+
     def parse(self):
-        self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
+        if match := self.regex_redirect.match(self.document.text):
+            self.redirect = self.document.text[match.end():]
+        else:
+            self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
     
     def parse_category(self):
-        links = self.paragraphs.find_all(type = 'LinkedText', link = re.compile(r'^분류:'), escape = False, recursive = True)
-        
-        categories = []
+        links = self.paragraphs.find_all(type = 'LinkedText', namespace = '분류', escape = False, recursive = True)
         
         for l in links:
-            if l.link[3:] not in categories:
-                categories.append((l.link[3:], l.anchor))
+            if not self.is_in_category(l.link):
+                self.categories.append((l.link, l.anchor))
         
         for l in links:
             l.extract()
             if not l.parent.content and l.parent.parent:
                 l.parent.extract()
-        
-        return categories
     
     def get_category_index(self, category):
         for i in range(len(self.categories)):
@@ -2277,17 +2354,22 @@ class Namumark():
             self.categories.pop(i)
     
     def render(self):
-        category_paragraph = MarkedText(self)
-        
-        result = str(self.paragraphs)
-        
-        if self.categories:
-            for c in self.categories:
-                l = LinkedText(self)
-                l.link = '분류:{}{}'.format(c[0], '#' + c[1] if c[1] else '')
+        if self.redirect:
+            return '#redirect ' + self.redirect
+        else:
+            category_paragraph = MarkedText(self)
+            
+            result = str(self.paragraphs)
+            
+            if self.categories:
+                for c, anchor in self.categories:
+                    l = LinkedText(self)
+                    l.link = c
+                    if anchor:
+                        l.link += '#' + anchor
+                    
+                    category_paragraph.append_child(l)
                 
-                category_paragraph.content.append(l)
-            
-            result += '\n' + str(category_paragraph)
-            
-        return result
+                result += '\n' + str(category_paragraph)
+                
+            return result

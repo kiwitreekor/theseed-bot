@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "theseed-bot"
+authors = [
+    {name = "kiwitree", email = "kiwitreekor@gmail.com"},
+]
+description = "Namumark parser for automated editing"
+requires-python = ">=3.7"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "BeautifulSoup4",
+    "requests",
+    "webcolors",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/kiwitreekor/theseed-bot"
+
+[tool.setuptools.dynamic]
+version = {attr = "theseed_bot.namumark.version"}
