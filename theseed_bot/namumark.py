@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.9'
+version = '2.10'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -187,7 +187,7 @@ class MarkedText():
     
     def __str__(self):
         result = ''
-        for i in range(self.indent):
+        for _ in range(self.indent):
             result += ' '
         
         result += '' if not self.open else self.open
@@ -196,6 +196,13 @@ class MarkedText():
             result += str(c)
             
         result += '' if not self.close else self.close
+            
+        return result
+    
+    def get_content(self):
+        result = ''
+        for c in self.content:
+            result += str(c)
             
         return result
     
@@ -2255,6 +2262,12 @@ class Color():
         else:
             return cls(light, dark)
 
+class Category():
+    def __init__(self, link, blur = False, alt = None):
+        self.link = link
+        self.blur = blur
+        self.alt = alt
+
 class Namumark():
     h_tags = [
         # regex, level
@@ -2296,7 +2309,7 @@ class Namumark():
 
         self.redirect = None
         self.paragraphs = None
-        self.categories = []
+        self.categories: list[Category] = []
 
         self.parse()
         
@@ -2310,11 +2323,14 @@ class Namumark():
             self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
     
     def parse_category(self):
-        links = self.paragraphs.find_all(type = 'LinkedText', namespace = '분류', escape = False, recursive = True)
+        links: list[LinkedText] = self.paragraphs.find_all(type = 'LinkedText', namespace = '분류', escape = False, recursive = True)
         
         for l in links:
             if not self.is_in_category(l.link):
-                self.categories.append((l.link, l.anchor))
+                alt = None
+                if l.content:
+                    alt = l.get_content()
+                self.categories.append(Category(l.link, blur = l.anchor == 'blur', alt = alt))
         
         for l in links:
             l.extract()
@@ -2323,20 +2339,22 @@ class Namumark():
     
     def get_category_index(self, category):
         for i in range(len(self.categories)):
-            if self.categories[i][0] == category:
+            if self.categories[i].link == category:
                 return i
         return None
     
     def is_in_category(self, category):
-        for c, anchor in self.categories:
-            if c == category:
+        for c in self.categories:
+            if c.link == category:
                 return True
         
         return False
     
-    def add_category(self, category, blur = False):
-        if not category in self.categories:
-            self.categories.append((category, 'blur' if blur else None))
+    def add_category(self, category, blur = False, alt = None):
+        if not category:
+            raise ValueError()
+        if not self.is_in_category(category):
+            self.categories.append(Category(category, blur = blur, alt = alt))
     
     def blur_category(self, category):
         i = self.get_category_index(category)
@@ -2362,11 +2380,13 @@ class Namumark():
             result = str(self.paragraphs)
             
             if self.categories:
-                for c, anchor in self.categories:
+                for c in self.categories:
                     l = LinkedText(self)
-                    l.link = c
-                    if anchor:
-                        l.link += '#' + anchor
+                    l.link = c.link
+                    if c.blur:
+                        l.link += '#blur'
+                    if c.alt:
+                        l.content = [PlainText(c.alt)]
                     
                     category_paragraph.append_child(l)
                 
