@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.10'
+version = '2.11'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1316,6 +1316,7 @@ class Table(MarkedText):
         (re.compile(r'^:$'), ('align', 'center')),
         (re.compile(r'^\($'), ('align', 'left')),
         (re.compile(r'^\)$'), ('align', 'right')),
+        (re.compile(r'^nopad$'), ('nopad', None)),
         (re_color, 'bgcolor')
     ]
 
@@ -1717,7 +1718,10 @@ class Table(MarkedText):
                     if type == 'colspan' or type == 'rowspan' or type == 'align' or type == 'valign' or type == 'gapalign':
                         pass # process separately
                     else:
-                        style_str += '<{}={}>'.format(type, style)
+                        if style == None:
+                            style_str += '<{}>'.format(type)
+                        else:
+                            style_str += '<{}={}>'.format(type, style)
                 
                 # apply gap alignments
                 for type, style in cell.styles.items():
