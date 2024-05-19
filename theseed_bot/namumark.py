@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.11'
+version = '2.12'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -690,21 +690,44 @@ class WikiDiv(MarkedText):
     
     name = 'WikiDiv'
     
-    def preprocess(self, content, offset):
-        match_style = re.match(r' style="(.*?)"\n', content[offset:])
-        if not match_style:
-            return None
+    def parse_css(self, text):
+        result = {}
         
-        self.styles = {}
-        for pair in match_style[1].split(';'):
+        for pair in text.split(';'):
             pair_split = pair.split(':')
             
             if len(pair_split) < 2:
                 continue
             
-            self.styles[pair_split[0].strip()] = pair_split[1].strip()
+            result[pair_split[0].strip()] = pair_split[1].strip()
         
-        offset += match_style.end()
+        return result
+    
+    def render_css(self, style):
+        result = ''
+        for key, value in style.items():
+            result += '{}: {}; '.format(key, value)
+        
+        return result[:-2]
+    
+    def preprocess(self, content, offset):
+        self.styles = {}
+        self.dark_styles = {}
+    
+        match_style = re.match(r'.*?style="(.*?)"', content[offset:])
+        if match_style:
+            self.styles = self.parse_css(match_style[1])
+            offset += match_style.end()
+        
+        match_darkstyle = re.match(r'.*?dark-style="(.*?)"', content[offset:])
+        if match_darkstyle:
+            self.dark_styles = self.parse_css(match_darkstyle[1])
+            offset += match_darkstyle.end()
+        
+        match_newline = re.match(r'.*\n', content[offset:])
+        if match_newline:
+            offset += match_newline.end()
+        
         return offset
     
     def separate_color(self):
@@ -717,12 +740,11 @@ class WikiDiv(MarkedText):
             self.content = [colored_text]
     
     def __str__(self):
-        styles = ''
-        for key, value in self.styles.items():
-            styles += '{}: {}; '.format(key, value)
-        styles = styles[:-2]
-    
-        result = self.open + ' style="{}"\n'.format(styles)
+        styles = ' style="' + self.render_css(self.styles) + '"'
+        if self.dark_styles:
+            styles += ' dark-style="' + self.render_css(self.dark_styles) + '"'
+        
+        result = self.open + styles + "\n"
         
         for c in self.content:
             result += str(c)
@@ -731,7 +753,7 @@ class WikiDiv(MarkedText):
         return result
     
     def __repr__(self):
-        return '{}(style={}, {})'.format(self.name, self.styles, repr(self.content))
+        return '{}(style={}{}, {})'.format(self.name, self.styles, ', dark-style={}'.format(self.dark_styles) if self.dark_styles else '', repr(self.content))
 
 class FoldingDiv(MarkedText):
     open = "{{{#!folding"
@@ -1698,11 +1720,6 @@ class Table(MarkedText):
                                 processed.append('table' + table_type)
                         
                                 style_str += '<{}={}>'.format(type, self.styles[table_type])
-                        else:
-                            if type in cell.styles:
-                                processed.append(type)
-                                
-                                style_str += '<{}={}>'.format(type, cell.styles[type])
                     
                     for type, style in self.styles.items():
                         if not 'table' + type in processed:
