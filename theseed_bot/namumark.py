@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.12'
+version = '2.12.1'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1650,6 +1650,15 @@ class Table(MarkedText):
             
         return inst, i
     
+    def process_style(self, type, style):
+        if type == 'colspan' or type == 'rowspan' or type == 'align' or type == 'valign' or type == 'gapalign':
+            return '' # process separately
+        else:
+            if style == None:
+                return '<{}>'.format(type)
+            else:
+                return '<{}={}>'.format(type, style)
+    
     def __str__(self):
         result = '||'
         if self.caption:
@@ -1720,6 +1729,10 @@ class Table(MarkedText):
                                 processed.append('table' + table_type)
                         
                                 style_str += '<{}={}>'.format(type, self.styles[table_type])
+                        else:
+                            if type in cell.styles:
+                                processed.append(type)
+                                style_str += self.process_style(type, cell.styles[type])
                     
                     for type, style in self.styles.items():
                         if not 'table' + type in processed:
@@ -1732,13 +1745,7 @@ class Table(MarkedText):
                         if type in processed:
                             continue
                             
-                    if type == 'colspan' or type == 'rowspan' or type == 'align' or type == 'valign' or type == 'gapalign':
-                        pass # process separately
-                    else:
-                        if style == None:
-                            style_str += '<{}>'.format(type)
-                        else:
-                            style_str += '<{}={}>'.format(type, style)
+                    style_str += self.process_style(type, style)
                 
                 # apply gap alignments
                 for type, style in cell.styles.items():
