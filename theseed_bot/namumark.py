@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.12.1'
+version = '2.12.2'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1568,7 +1568,13 @@ class Table(MarkedText):
                     align_left = content[i-3] == ' '
                     
                     if align_left:
-                        cell[-1], j = MarkedText.parse_line(str(cell[-1]).rstrip(), namumark, start_newline = False)
+                        if len(cell[-1].content) > 0:
+                            if isinstance(cell[-1].content[-1], PlainText):
+                                temp = cell[-1].content[-1].content.rstrip()
+                                if not temp:
+                                    del cell[-1].content[-1]
+                                else:
+                                    cell[-1].content[-1].content = temp
                     
                     if align_right and align_left:
                         styles['gapalign'] = 'center'
