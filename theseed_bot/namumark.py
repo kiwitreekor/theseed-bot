@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.12.2'
+version = '2.12.3'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1339,6 +1339,9 @@ class Table(MarkedText):
         (re.compile(r'^\($'), ('align', 'left')),
         (re.compile(r'^\)$'), ('align', 'right')),
         (re.compile(r'^nopad$'), ('nopad', None)),
+        (re.compile(r'^keepall$'), ('keepall', None)),
+        (re.compile(r'^rowkeepall$'), ('rowkeepall', None)),
+        (re.compile(r'^colkeepall$'), ('colkeepall', None)),
         (re_color, 'bgcolor')
     ]
 
