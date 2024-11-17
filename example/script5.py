@@ -49,7 +49,7 @@ if __name__ == '__main__':
                 continue
             
             token = res['token']
-            new_text, log = edit_link(doc, res['text'])
+            new_text, log = edit_category(doc, res['text'])
             
             res = requests.post('https://namu.wiki/api/edit/{}'.format(doc), json = {'text': new_text, 'log': log, 'token': token}, headers = headers)
             print(res.text)
