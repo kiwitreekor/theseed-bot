@@ -1,10 +1,10 @@
 from __future__ import annotations
-import re, copy, colorsys, webcolors, math
+import re, copy, colorsys, webcolors, math, enum
 from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.12.3'
+version = '2.13'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -403,7 +403,7 @@ class MarkedText():
         
         return result
     
-    def extract(self):
+    def extract(self, cascade = False):
         if self.parent:
             if isinstance(self.parent, Paragraph):
                 idx = self.parent.content.index(self)
@@ -412,7 +412,10 @@ class MarkedText():
                 if isinstance(self.parent, TableCell):
                     return None
                 else:
-                    return self.parent.content.pop(self.parent.content.index(self))
+                    result = self.parent.content.pop(self.parent.content.index(self))
+                    if cascade and not self.parent.content and self.parent.parent:
+                        self.parent.extract()
+                    return result
         else:
             raise TypeError()
     
@@ -2299,11 +2302,98 @@ class Color():
         else:
             return cls(light, dark)
 
+class CategoryPosition(enum.Enum):
+    KEEP = 0
+    TOP = 1
+    BOTTOM = 2
+
 class Category():
-    def __init__(self, link, blur = False, alt = None):
-        self.link = link
-        self.blur = blur
-        self.alt = alt
+    def __init__(self, link, blur = False, alt = None, position = CategoryPosition.KEEP, link_object = None):
+        self._link = link
+        self._blur = blur
+        self._alt = alt
+        self._position = position
+        self._link_object = link_object
+        
+    @classmethod
+    def create(cls, l):
+        if not l.is_category:
+            raise ValueError()
+        
+        alt = None
+        if l.content:
+            alt = l.get_content()
+            
+        return cls(l.link, blur = l.anchor == 'blur', alt = alt, link_object = l)
+    
+    @property
+    def link(self):
+        return self._link
+        
+    @property
+    def blur(self):
+        return self._blur
+        
+    @property
+    def alt(self):
+        return self._alt
+        
+    @property
+    def position(self):
+        return self._position
+    
+    @link.setter
+    def link(self, link):
+        if not isinstance(link, str):
+            raise TypeError()
+            
+        self._link = link
+        if self._link_object:
+            self._link_object.link = link
+    
+    @blur.setter
+    def blur(self, blur):
+        if blur == True:
+            self._blur = True
+            if self._link_object:
+                self._link_object.anchor = 'blur'
+        elif blur == False:
+            self._blur = False
+            if self._link_object:
+                self._link_object.anchor = None
+        else:
+            raise ValueError()
+    
+    @alt.setter
+    def alt(self, alt):
+        if not isinstance(alt, str):
+            raise TypeError()
+            
+        self._alt = alt
+        if self._link_object:
+            self._link_object.content = [PlainText(self._alt)]
+    
+    @position.setter
+    def position(self, position):
+        self._position = position
+    
+    def link_object(self, namumark):
+        if self._link_object:
+            if self._link_object.namumark == namumark:
+                return self._link_object
+        
+        l = LinkedText(namumark)
+        l.link = self._link
+        
+        if self._blur:
+            l.anchor = 'blur'
+        else:
+            l.anchor = None
+            
+        if self._alt:
+            l.content = [PlainText(self._alt)]
+        
+        return l
 
 class Namumark():
     h_tags = [
@@ -2359,74 +2449,76 @@ class Namumark():
         else:
             self.paragraphs = Paragraph(self, None, 0, False, self.document.text)
     
+    def find_category(self, category):
+        for c in self.categories:
+            if c.link == category:
+                return c
+        return None
+    
     def parse_category(self):
         links: list[LinkedText] = self.paragraphs.find_all(type = 'LinkedText', namespace = '분류', escape = False, recursive = True)
         
         for l in links:
-            if not self.is_in_category(l.link):
-                alt = None
-                if l.content:
-                    alt = l.get_content()
-                self.categories.append(Category(l.link, blur = l.anchor == 'blur', alt = alt))
-        
-        for l in links:
-            l.extract()
-            if not l.parent.content and l.parent.parent:
-                l.parent.extract()
-    
-    def get_category_index(self, category):
-        for i in range(len(self.categories)):
-            if self.categories[i].link == category:
-                return i
-        return None
-    
-    def is_in_category(self, category):
-        for c in self.categories:
-            if c.link == category:
-                return True
-        
-        return False
+            if not self.find_category(l.link):
+                self.categories.append(Category.create(l))
+            else:
+                l.extract(cascade = True)
     
     def add_category(self, category, blur = False, alt = None):
         if not category:
             raise ValueError()
-        if not self.is_in_category(category):
+        if not self.find_category(category):
             self.categories.append(Category(category, blur = blur, alt = alt))
     
     def blur_category(self, category):
-        i = self.get_category_index(category)
-        if i != None:
-            self.categories[i] = (self.categories[i][0], 'blur')
+        if (c := self.find_category(category)) != None:
+            c.blur = True
     
     def unblur_category(self, category):
-        i = self.get_category_index(category)
-        if i != None:
-            self.categories[i] = (self.categories[i][0], None)
+        if (c := self.find_category(category)) != None:
+            c.blur = False
     
     def remove_category(self, category):
-        i = self.get_category_index(category)
-        if i != None:
-            self.categories.pop(i)
+        if (c := self.find_category(category)) != None:
+            self.categories.remove(c)
+    
+    def replace_category(self, category, new_category):
+        if (c := self.find_category(category)) != None:
+            if not self.find_category(new_category):
+                c.link = new_category
+            else:
+                self.remove_category(category)
+    
+    def move_category(self, position):
+        for c in self.categories:
+            c.position = position
     
     def render(self):
         if self.redirect:
             return '#redirect ' + self.redirect
         else:
-            category_paragraph = MarkedText(self)
-            
-            result = str(self.paragraphs)
+            category_top_paragraph = MarkedText(self)
+            category_bottom_paragraph = MarkedText(self)
             
             if self.categories:
                 for c in self.categories:
-                    l = LinkedText(self)
-                    l.link = c.link
-                    if c.blur:
-                        l.link += '#blur'
-                    if c.alt:
-                        l.content = [PlainText(c.alt)]
+                    if c.position == CategoryPosition.KEEP:
+                        continue
+                        
+                    l = c.link_object(self)
+                    l.extract(cascade = True)
                     
-                    category_paragraph.append_child(l)
+                    if c.position == CategoryPosition.TOP:
+                        category_top_paragraph.append_child(l)
+                    elif c.position == CategoryPosition.BOTTOM:
+                        category_bottom_paragraph.append_child(l)
+            
+            result = str(self.paragraphs)
                 
-                result += '\n' + str(category_paragraph)
+            if self.categories:
+                if category_top_paragraph.content:
+                    result = str(category_top_paragraph) + '\n' + result
+                if category_bottom_paragraph.content:
+                    result += '\n' + str(category_bottom_paragraph)
                 
             return result
