@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.13'
+version = '2.13.1'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1383,9 +1383,8 @@ class Table(MarkedText):
         
         for row in self.content:
             for cell in row:
-                for content in cell.content:
-                    for i in content:
-                        yield i
+                for i in cell:
+                    yield i
     
     @classmethod
     def parse_caption(cls, content, namumark, offset = 0):
@@ -1809,67 +1808,7 @@ class Table(MarkedText):
         
         return self.cache_colcount
     
-    def internal_apply_styles(self, type):
-        assert type == 'bgcolor' or type == 'color'
-        
-        # apply tablecolor, rowcolor, colcolors
-        # priority: color > colcolor > rowcolor > tablecolor
-        colcolors = {}
-        rowcolor = None
-        tablecolor = None
-        
-        if type in self.styles:
-            tablecolor = self.styles[type]
-        
-        for row in self.content:
-            for cell in row:
-                if 'col' + type in cell.styles:
-                    colcolors[cell.column] = cell.styles.pop('col' + type)
-                
-                if 'row' + type in cell.styles:
-                    rowcolor = cell.styles.pop('row' + type)
-                
-                if type not in cell.styles:
-                    if cell.column in colcolors:
-                        cell.styles[type] = colcolors[cell.column]
-                    elif rowcolor:
-                        cell.styles[type] = rowcolor
-                    elif tablecolor:
-                        cell.styles[type] = tablecolor
-                    elif type == 'color':
-                        already_colored = True
-                        
-                        for m in cell.content:
-                            content = m.content
-                            line_already_colored = False
-
-                            if not str(content).strip():
-                                line_already_colored = True
-                                
-                            while content:
-                                if len(content) == 1:
-                                    if isinstance(content[0], ColoredText):
-                                        line_already_colored = True
-                                        break
-                                    elif isinstance(content[0], ItalicText) or isinstance(content[0], BoldText):
-                                        content = content[0].content
-                                    else:
-                                        break
-                                else:
-                                    break
-                            
-                            already_colored &= line_already_colored
-                        
-                        if not already_colored:
-                            cell.styles[type] = Namumark.default_text_color
-                
-            rowcolor = None
-    
-    def apply_styles(self):
-        self.internal_apply_styles('color')
-        self.internal_apply_styles('bgcolor')
-    
-    def compress(self):
+    def compress(self, recompress_color = False):
         columns = []
         
         for row in self.content:
@@ -1898,8 +1837,53 @@ class Table(MarkedText):
         
         self.cache_colcount = len(columns)
         
+        if recompress_color:
+            self.decompress_color('color')
+            self.decompress_color('bgcolor')
         self.compress_color('color')
         self.compress_color('bgcolor')
+    
+    def decompress_color(self, type):
+        assert type == 'bgcolor' or type == 'color'
+        
+        # override column styles
+        col_colors = [None for i in range(self.get_colcount())]
+        
+        for i, row in enumerate(self.content):
+            for cell in row:
+                if col_colors[cell.column]:
+                    if type not in cell.styles:
+                        cell.styles[type] = col_colors[cell.column]
+                elif 'col' + type in cell.styles:
+                    col_colors[cell.column] = cell.styles['col' + type]
+                    if type not in cell.styles:
+                        cell.styles[type] = cell.styles['col' + type]
+                    
+                    del cell.styles['col' + type]
+        
+        # override row styles
+        row_colors = [None for i in range(len(self.content))]
+        
+        for i, row in enumerate(self.content):
+            for cell in row:
+                if 'row' + type in cell.styles:
+                    row_colors[i] = cell.styles['row' + type]
+                    
+                    del cell.styles['row' + type]
+        
+        for i, row in enumerate(self.content):
+            for cell in row:
+                if row_colors[i] and type not in cell.styles:
+                    cell.styles[type] = row_colors[i]
+        
+        # override table styles
+        if type in self.styles:
+            for row in self.content:
+                for cell in row:
+                    if type not in cell.styles:
+                        cell.styles[type] = self.styles[type]
+            
+            del self.styles[type]
      
     def compress_color(self, type):
         assert type == 'bgcolor' or type == 'color'
@@ -1911,6 +1895,15 @@ class Table(MarkedText):
             
             for row in self.content:
                 for cell in row:
+                    color_text = cell.find_all(type = 'ColoredText')
+                    
+                    # convert ColoredText to cell style
+                    if len(color_text) == 1:
+                        if cell.get_string() == color_text[0].get_string():
+                            color_text[0].extract()
+                            color_text[0].parent.content.extend(color_text[0].content)
+                            cell.styles[type] = color_text[0].color
+                            
                     if type in cell.styles:
                         if Namumark.default_text_color.compare(cell.styles[type]):
                             del cell.styles[type]
@@ -1941,9 +1934,6 @@ class Table(MarkedText):
             
             if not enable_tablecolor:
                 break
-        
-        if not color_count:
-            return
         
         if enable_tablecolor:
             tablecolor = colors[color_count.index(max(color_count))]
@@ -1980,7 +1970,6 @@ class Table(MarkedText):
                     else:
                         color_count[index] += 1
             
-            
             if enable_rowcolor:
                 if color_count:
                     if max(color_count) > 1:
@@ -2015,10 +2004,10 @@ class Table(MarkedText):
                     else:
                         index = None
                         
-                        for c in colors[cell.column]:
+                        for c_i, c in enumerate(colors[cell.column]):
                             if isinstance(c, Color):
                                 if c.compare(cell.styles[type]):
-                                    index = colors[cell.column].index(c)
+                                    index = c_i
                                     break
                         
                         if index == None:
@@ -2055,7 +2044,7 @@ class Table(MarkedText):
                 if isinstance(style, Color):
                     light = webcolors.html5_parse_legacy_color(style.light)
                     if light.red == 255 and light.blue == 255 and light.green == 255:
-                        style.dark = '#191919'
+                        style.dark = '#1c1d1f'
         
         background = False
         
@@ -2119,8 +2108,28 @@ class TableCell():
     def __repr__(self):
         return 'TableCell({},{},{})'.format(self.column, self.styles, repr(self.content))
     
+    def __iter__(self):
+        for content in self.content:
+            for i in content:
+                yield i
+    
+    def find_all(self, **kwargs):
+        result = []
+        
+        for content in self:
+            if not isinstance(content, str):
+                if content.filter(**kwargs):
+                    result.append(content)
+        
+        return result
+    
     def get_string(self):
-        return self.content.get_string()
+        result = ''
+
+        for content in self.content:
+            result += content.get_string() + '\n'
+        
+        return result[:-1]
     
     def get_colspan(self):
         colspan = 1
@@ -2197,10 +2206,14 @@ class Color():
     def compare(self, color):
         if not isinstance(color, Color):
             return False
-        
-        if color.light.lower() == self.light.lower() and color.dark.lower() == self.dark.lower():
-            return True
-        return False
+            
+        if color.light.lower() == self.light.lower():
+            if color.dark == None or self.dark == None and color.dark != self.dark:
+                return False
+            elif color.light.lower() == self.light.lower() and color.dark.lower() == self.dark.lower():
+                return True
+        else:
+            return False
     
     @staticmethod
     def get_lightness(color):
@@ -2423,10 +2436,10 @@ class Namumark():
         QuotedText, HorizontalLine, Comment
     ]
     
-    default_text_color = Color('#373a3c', '#dddddd')
+    default_text_color = Color('#212529', '#e0e0e0')
     default_link_color = Color('#0275d8', '#eca019')
     default_table_bgcolor = Color('#f5f5f5', '#2d2f34')
-    default_bgcolor = Color('#ffffff', '#1f2023')
+    default_bgcolor = Color('#ffffff', '#1c1d1f')
 
     namespaces = ['문서', '틀', '분류', '파일', '사용자', '나무위키', '위키운영', '휴지통', '파일휴지통', '템플릿']
     special_namespaces = ['분류', '파일']
