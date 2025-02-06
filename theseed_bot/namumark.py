@@ -1246,7 +1246,7 @@ class Macro(MarkedText):
             return self.named_parameters[idx]
         elif isinstance(idx, int):
             v, named = self.parameters[idx]
-            return v if (not named) else self.named_parameters[v]
+            return str(v) if (not named) else (str(v) + '=' + str(self.named_parameters[v]))
         else:
             raise KeyError
     
