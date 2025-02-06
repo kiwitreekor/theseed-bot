@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.13.1'
+version = '2.14'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
