@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.13.1'
+version = '2.14.0'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1216,8 +1216,9 @@ class Macro(MarkedText):
                     named_param = re.split(r'(?<!\\)=', param, maxsplit = 1)
                     if len(named_param) > 1:
                         self.named_parameters[named_param[0]] = named_param[1]
+                        self.parameters.append((named_param[0], True))
                 else:
-                    self.parameters.append(param)
+                    self.parameters.append((param, False))
         
         offset += match_macro.end()
         
@@ -1228,11 +1229,11 @@ class Macro(MarkedText):
         
         if self.parameters:
             result += '('
-            for p in self.parameters:
-                result += str(p) + ', '
-                
-            for k, v in self.named_parameters.items():
-                result += str(k) + '=' + str(v) + ', '
+            for p, named in self.parameters:
+                if not named:
+                    result += str(p) + ', '
+                else:
+                    result += str(p) + '=' + str(self.named_parameters[p]) + ', '
                 
             result = result[:-2]
             result += ')'
@@ -1244,15 +1245,23 @@ class Macro(MarkedText):
         if isinstance(idx, str):
             return self.named_parameters[idx]
         elif isinstance(idx, int):
-            return self.parameters[idx]
+            v, named = self.parameters[idx]
+            return v if (not named) else self.named_parameters[v]
         else:
             raise KeyError
     
     def __setitem__(self, idx, value):
         if isinstance(idx, str):
             self.named_parameters[idx] = value
+            if idx not in self.named_parameters.keys():
+                self.parameters.append((idx, True))
         elif isinstance(idx, int):
-            self.parameters[idx] = value
+            v, named = self.parameters[idx]
+            if not named:
+                self.parameters[idx] = (value, False)
+            else:
+                self.named_parameters[v] = value
+            # self.parameters[idx] = value
         else:
             raise ValueError
     
