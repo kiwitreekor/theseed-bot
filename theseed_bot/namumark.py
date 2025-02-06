@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.14.0'
+version = '2.13.1'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -1261,7 +1261,6 @@ class Macro(MarkedText):
                 self.parameters[idx] = (value, False)
             else:
                 self.named_parameters[v] = value
-            # self.parameters[idx] = value
         else:
             raise ValueError
     
