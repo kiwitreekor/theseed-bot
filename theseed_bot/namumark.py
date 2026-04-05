@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 # namumark parser
 
-version = '2.14'
+version = '2.15'
 
 class Document():
     def __init__(self, title, text, force_show_namespace = True):
@@ -716,6 +716,8 @@ class WikiDiv(MarkedText):
     def preprocess(self, content, offset):
         self.styles = {}
         self.dark_styles = {}
+        self.lang = None
+        self.class_name = None
     
         match_style = re.match(r'.*?style="(.*?)"', content[offset:])
         if match_style:
@@ -726,6 +728,16 @@ class WikiDiv(MarkedText):
         if match_darkstyle:
             self.dark_styles = self.parse_css(match_darkstyle[1])
             offset += match_darkstyle.end()
+        
+        match_lang = re.match(r'.*?lang="(.*?)"', content[offset:])
+        if match_lang:
+            self.lang = match_lang[1]
+            offset += match_lang.end()
+        
+        match_class = re.match(r'.*?class="(.*?)"', content[offset:])
+        if match_class:
+            self.class_name = match_class[1]
+            offset += match_class.end()
         
         match_newline = re.match(r'.*\n', content[offset:])
         if match_newline:
@@ -746,6 +758,10 @@ class WikiDiv(MarkedText):
         styles = ' style="' + self.render_css(self.styles) + '"'
         if self.dark_styles:
             styles += ' dark-style="' + self.render_css(self.dark_styles) + '"'
+        if self.lang:
+            styles += ' lang="{}"'.format(self.lang)
+        if self.class_name:
+            styles += ' class="{}"'.format(self.class_name)
         
         result = self.open + styles + "\n"
         
@@ -756,7 +772,18 @@ class WikiDiv(MarkedText):
         return result
     
     def __repr__(self):
-        return '{}(style={}{}, {})'.format(self.name, self.styles, ', dark-style={}'.format(self.dark_styles) if self.dark_styles else '', repr(self.content))
+        attribs = []
+
+        if self.styles:
+            attribs.append('style="{}"'.format(self.styles))
+        if self.dark_styles:
+            attribs.append('dark-style="{}"'.format(self.dark_styles))
+        if self.lang:
+            attribs.append('lang="{}"'.format(self.lang))
+        if self.class_name:
+            attribs.append('class="{}"'.format(self.class_name))
+
+        return '{}({}, {})'.format(self.name, ', '.join(attribs), repr(self.content))
 
 class FoldingDiv(MarkedText):
     open = "{{{#!folding"
@@ -788,6 +815,37 @@ class FoldingDiv(MarkedText):
     
     def __repr__(self):
         return '{}(title="{}", {})'.format(self.name, self.title, repr(self.content))
+    
+class ConditionalText(MarkedText):
+    open = "{{{#!if"
+    close = "}}}"
+    multiline = True
+    
+    start_newline = True
+    
+    name = 'ConditionalText'
+    
+    def preprocess(self, content, offset):
+        match_condition = re.match(r' (.*?)\n', content[offset:])
+        if not match_condition:
+            return None
+        
+        self.condition = match_condition[1]
+        
+        offset += match_condition.end()
+        return offset
+    
+    def __str__(self):
+        result = self.open + ' {}\n'.format(self.condition)
+        
+        for c in self.content:
+            result += str(c)
+        
+        result += self.close
+        return result
+    
+    def __repr__(self):
+        return '{}(condition="{}", {})'.format(self.name, self.condition, repr(self.content))
 
 class HtmlText(MarkedText):
     open = "{{{#!html"
@@ -883,6 +941,16 @@ class NowikiText(MarkedText):
         self.content = content[offset:i]
         
         return i
+    
+
+class StyleDefinitionText(NowikiText):
+    open = "{{{#!style"
+    close = "}}}"
+    multiline = True
+    
+    start_newline = True
+    
+    name = 'StyleDefinitionText'
 
 class SizedText(MarkedText):
     open = "{{{"
@@ -1338,6 +1406,7 @@ class Table(MarkedText):
 
     re_color = re.compile(r'((?:(?:^|,)([A-Za-z]+|#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}))){1,2})$')
     re_length = re.compile(r'^[0-9]+(\.[0-9]+)?(%|px)?$')
+    re_classname = re.compile(r'^[A-Za-z0-9_\- ]+$')
 
     re_tablestyle = re.compile(r'<(table ?)?(.*?)(=(["\']?)(.*?)\4)?>')
     
@@ -1361,7 +1430,8 @@ class Table(MarkedText):
         'color': re_color, 
         'bgcolor': re_color, 
         'bordercolor': re_color,
-        'align': re.compile(r'^(left|center|right)$')
+        'align': re.compile(r'^(left|center|right)$'),
+        'class': re_classname
     }
 
     style_types = {
@@ -1372,7 +1442,10 @@ class Table(MarkedText):
         'colcolor': re_color, 
         'colbgcolor': re_color, 
         'rowcolor': re_color, 
-        'rowbgcolor': re_color
+        'rowbgcolor': re_color,
+        'class': re_classname,
+        'rowclass': re_classname,
+        'colclass': re_classname
     }
     
     def __init__(self, namumark, content, indent):
@@ -2431,7 +2504,7 @@ class Namumark():
     
     brackets = [
         OldBoxedText,
-        WikiDiv, FoldingDiv, HtmlText,
+        WikiDiv, FoldingDiv, HtmlText, StyleDefinitionText, ConditionalText,
         ColoredText, SizedText, 
         FootnoteText,
         LinkedText, BoldText, ItalicText, StrikedText, StrikedText2, UnderlinedText, UpperText, LowerText,
